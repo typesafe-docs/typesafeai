@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+json_cache.json
+
+# Node
+node_modules/
+package-lock.json
+
+# Env / secrets
+.env
+.env.*
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+tools/.cache/
+examples/typescript/.doc-snippets/

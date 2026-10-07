@@ -1,0 +1,60 @@
+name: examples
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r examples/python/requirements.txt mypy
+      - name: Type-check
+        run: mypy --ignore-missing-imports examples/python
+      - name: Run against the offline mock API
+        run: |
+          python examples/mock/mock_server.py 8765 &
+          sleep 1
+          for f in examples/python/*.py; do echo "=== $f"; python "$f"; done
+        env:
+          TYPESAFE_API_KEY: mock
+          TYPESAFE_BASE_URL: http://127.0.0.1:8765
+
+  typescript:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/typescript
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm install
+      - name: Type-check
+        run: npx tsc -p .
+      - name: Run against the offline mock API
+        run: |
+          python ../mock/mock_server.py 8765 &
+          sleep 1
+          for f in *.ts; do echo "=== $f"; npx tsx "$f"; done
+          echo "=== TypeScript snippets in the docs"
+          python ../../tools/check_doc_snippets.py --run
+        env:
+          TYPESAFE_API_KEY: mock
+          TYPESAFE_BASE_URL: http://127.0.0.1:8765
+
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          args: --offline --no-progress './**/*.md'

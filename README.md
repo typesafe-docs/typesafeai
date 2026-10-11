@@ -213,6 +213,7 @@ console.log(answers.category.choice, answers.urgency.score, answers.refund.noul)
 ```text
 .
 ├── README.md                       ← you are here
+├── LICENSE  NOTICE                 ← MIT for original work; what it doesn't cover
 ├── docs/
 │   ├── 01-introduction.md … 15-faq.md   ← the guide (hand-written, curated)
 │   ├── 04-primitives/                    ← Choice, Score, Noul, structure
@@ -254,3 +255,7 @@ The converter ([`tools/mdx_to_gfm.py`](tools/mdx_to_gfm.py)) turns Mintlify MDX 
 ## Disclaimer
 
 This is an unofficial, community-maintained guide. It isn't affiliated with or endorsed by TypeSafe. Request and response examples are copied from the official docs, and the responses are the recorded values published there. The full cookbook and SDK reference pages are converted mechanically from the official per-page Markdown, with the interactive request examples, signatures, and charts restored. Some glue code in the guide, such as router helpers and condensed cookbook code, is adapted and labeled illustrative. Your own results may differ by model version.
+
+## License
+
+The original work here (guide prose, examples, tools, and TypeScript ports) is [MIT](LICENSE). Content copied or converted from docs.typesafe.ai, including the cookbook pages, SDK reference, and cookbook charts, stays © TypeSafe and isn't covered by that license. See [NOTICE](NOTICE).

@@ -157,7 +157,7 @@ client.system_one(
 | `response.choices[id].choice` / `.probabilities` / `.confidence` | `str` / `dict[str, float]` / `float` |
 | `response.scores[id].score` / `.probabilities` / `.legend` / `.confidence` | `float` / `dict[int, float]` / `dict[int, ...]` / `float` |
 | `response.model` | Versioned model ID, for example `jev-1.13.0` |
-| `response.usage.input_tokens` / `.output_tokens` | `int` |
+| `response.usage.input_tokens` / `.output_tokens` | `int \| None` (counts are optional: "when reported by the API") |
 | `response.request_id` | The `x-typesafe-request-id` header |
 | `response.raw_http_response` | The underlying HTTP response |
 

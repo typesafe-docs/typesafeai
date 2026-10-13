@@ -7,11 +7,10 @@
 | | |
 |---|---|
 | **Price** | $42 per billion tokens ($0.042 per million). **Charged on input tokens only; output tokens are free.** |
-| **Rate limits** | 100K tokens/second and 80 requests/second (adjusted dynamically) |
+| **Rate limits** | 100K tokens/second and 80 requests/second. Adjusted dynamically and may change without notice; higher limits on custom and enterprise plans (sales@typesafe.ai). Both SDKs retry `429` and honor `retry-after`. |
 | **Context** | 64k tokens per request; 32k tokens for `state` plus the single longest question |
 | **Input** | Text only: a string, JSON object, or array of text |
-
-> Rate limits currently change without notice as capacity grows. Higher limits come with custom and enterprise plans (sales@typesafe.ai). Both SDKs retry `429` with backoff and honor `retry-after`.
+| **Questions per request** | No documented count limit; the token limits above apply |
 
 ### Rough cost math
 
@@ -21,7 +20,7 @@
 PRICE_PER_INPUT_TOKEN = 0.042 / 1_000_000   # USD
 
 def cost_usd(response) -> float:
-    return response.usage.input_tokens * PRICE_PER_INPUT_TOKEN
+    return (response.usage.input_tokens or 0) * PRICE_PER_INPUT_TOKEN  # counts are Optional
 
 # e.g. 400 input tokens per call x 1M calls ≈ $16.80
 ```
@@ -81,9 +80,75 @@ Jev isn't fine-tuned or LoRA-adapted on customer data, and every account is serv
 
 Jev isn't trained on customer requests or responses. Enterprise customers can get zero data retention (ZDR). See <https://docs.typesafe.ai/legal>.
 
-## Language support
+## Language support and calibrating thresholds
 
-English is the primary language and gives the best accuracy. Other languages, including CJK scripts, work less well. Test on your own data and watch confidence closely.
+English is the primary language and gives the best accuracy. Other languages, including CJK scripts, work less well. A confidence threshold you tuned on English data doesn't carry over to another language, or to another question or model version. Before you trust one, measure accuracy above the threshold on a small labeled sample of each language you serve:
+
+**Python**
+
+```python
+from collections import defaultdict
+
+from typesafe_sdk import Choice, TypeSafeClient
+
+client = TypeSafeClient(model="jev-1.13.0")  # pin the version you calibrate against
+QUESTION = Choice(
+    instructions="Which team should handle `message`?",
+    criteria={"billing": "Payments, invoices, refunds", "technical": "Bugs, crashes, outages"},
+)
+
+labeled = [  # (language, message, correct team): use a few dozen real examples per language
+    ("en", "I was charged twice.", "billing"),
+    ("de", "Die App stürzt beim Login ab.", "technical"),
+    ("ja", "請求書が二重に発行されました。", "billing"),
+]
+THRESHOLD = 0.6
+
+stats: dict[str, list[int]] = defaultdict(lambda: [0, 0])  # language -> [answered, correct]
+for lang, message, truth in labeled:
+    answer = client.system_one({"message": message}, {"team": QUESTION}).choices["team"]
+    if answer.confidence >= THRESHOLD:
+        stats[lang][0] += 1
+        stats[lang][1] += answer.choice == truth
+
+for lang, (answered, correct) in stats.items():
+    print(f"{lang}: {correct}/{answered} correct above {THRESHOLD}")
+```
+
+**TypeScript**
+
+<!-- ts-check run -->
+```ts
+import { choice, TypeSafeClient } from "@typesafe-ai/sdk";
+
+const client = new TypeSafeClient({ defaultModel: "jev-1.13.0" }); // pin the version you calibrate against
+const question = choice("Which team should handle `message`?", {
+  billing: "Payments, invoices, refunds",
+  technical: "Bugs, crashes, outages",
+});
+
+const labeled: [lang: string, message: string, truth: string][] = [
+  // use a few dozen real examples per language
+  ["en", "I was charged twice.", "billing"],
+  ["de", "Die App stürzt beim Login ab.", "technical"],
+  ["ja", "請求書が二重に発行されました。", "billing"],
+];
+const THRESHOLD = 0.6;
+
+const stats = new Map<string, { answered: number; correct: number }>();
+for (const [lang, message, truth] of labeled) {
+  const { answers } = await client.systemOne({ state: { message }, questions: { team: question } });
+  if (answers.team.confidence < THRESHOLD) continue;
+  const s = stats.get(lang) ?? { answered: 0, correct: 0 };
+  s.answered++;
+  if (answers.team.choice === truth) s.correct++;
+  stats.set(lang, s);
+}
+
+for (const [lang, { answered, correct }] of stats) console.log(`${lang}: ${correct}/${answered} correct above ${THRESHOLD}`);
+```
+
+If a language falls short, raise its threshold, route it to a fallback, or translate it to English in code before the call and measure again.
 
 ---
 

@@ -39,6 +39,34 @@ Then use the TypeSafe skill when working on this project.
 
 Copy the whole `skills/typesafe-ai` directory, including its reference files, into your agent's skills directory.
 
+## Give the agent an API key
+
+The skill itself needs no key: it's documentation your agent reads. Add a key only if you want the agent to **run** test queries. Both SDKs and the examples read `TYPESAFE_API_KEY`.
+
+1. Create a key at <https://console.typesafe.ai/keys>.
+2. Export it in the shell you start the agent from, so the agent and every process it spawns inherit it:
+
+```bash
+export TYPESAFE_API_KEY="your-key-here"   # or add it to ~/.zshrc / ~/.bashrc
+claude                            # or codex, cursor-agent, ...
+```
+
+3. Or keep it per project, out of git. In Claude Code, `.claude/settings.local.json` isn't committed, and its `env` block applies to every command the agent runs:
+
+```json
+{
+  "env": { "TYPESAFE_API_KEY": "your-key-here" }
+}
+```
+
+4. Check that the agent can reach the API with a call that evaluates nothing:
+
+```bash
+curl -sS https://api.typesafe.ai/v1/models -H "Authorization: Bearer $TYPESAFE_API_KEY"
+```
+
+Then ask for experiments, for example: *"Using the TypeSafe skill, run some experiments using the TypeSafe API key that I've exported to `TYPESAFE_API_KEY`."* Never paste the key into the chat or commit it. Add `.env` to `.gitignore` if you keep it there.
+
 ## Updating
 
 ```bash

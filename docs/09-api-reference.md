@@ -118,7 +118,7 @@ Put the question in one field and the data it refers to in others. Refer to the 
 |---|---|---|
 | `model` | `string` | The **versioned** model that answered, for example `jev-1.13.0` |
 | `answers` | `map<string, Answer>` | One answer per question ID |
-| `usage` | `{ input_tokens: int, output_tokens: int }` | Token usage |
+| `usage` | `{ input_tokens: int \| null, output_tokens: int \| null }` | Token usage, when reported. The Python SDK types both counts as `int \| None`, so handle a missing count. |
 
 ### Answer types
 
@@ -178,6 +178,56 @@ curl https://api.typesafe.ai/v1/models \
 ```
 
 Returns `{ "models": [ { "name", "description", "release_date" }, ... ] }`. It currently lists the aliases. Versioned IDs such as `jev-1.13.0` are accepted in `model` whether or not they're listed.
+
+### Health check: list models, then confirm which version answers
+
+TypeSafe doesn't document a dedicated health endpoint. `GET /v1/models` is a cheap probe: it checks connectivity and your API key without evaluating anything. To learn which concrete version an alias resolves to, read `model` from a real System One response; the models list shows aliases, not versions. *This is a suggested pattern, not official guidance.*
+
+**Python**
+
+```python
+from typesafe_sdk import Noul, RetryPolicy, TypeSafeAPIError, TypeSafeClient, TypeSafeError
+
+client = TypeSafeClient()
+FAIL_FAST = RetryPolicy(max_retries=0)  # a health check should report problems, not wait them out
+
+
+def health_check() -> dict[str, object]:
+    try:
+        names = [m.name for m in client.models.list(retry=FAIL_FAST, timeout=5).models]
+        probe = client.system_one("ping", {"ok": Noul(instructions="Is this text non-empty?")}, retry=FAIL_FAST, timeout=5)
+    except TypeSafeAPIError as err:  # reached the API, which answered with an error (401, 429, 529, ...)
+        return {"ok": False, "status": err.status}
+    except TypeSafeError as err:  # never reached it: network error or timeout
+        return {"ok": False, "error": type(err).__name__}
+    return {"ok": True, "models": names, "answered_by": probe.model}  # e.g. "jev-1.13.0"
+```
+
+**TypeScript**
+
+<!-- ts-check run -->
+```ts
+import { APIError, noul, TypeSafeClient, TypeSafeError } from "@typesafe-ai/sdk";
+
+const client = new TypeSafeClient();
+const FAIL_FAST = { retry: { maxRetries: 0 }, timeout: 5_000 }; // report problems, don't wait them out
+
+async function healthCheck() {
+  try {
+    const models = await client.models.list(FAIL_FAST); // ModelCard[]: name, description, release_date
+    const probe = await client.systemOne({ state: "ping", questions: { ok: noul("Is this text non-empty?") } }, FAIL_FAST);
+    return { ok: true, models: models.map((m) => m.name), answeredBy: probe.model }; // e.g. "jev-1.13.0"
+  } catch (err) {
+    if (err instanceof APIError) return { ok: false, status: err.status }; // 401, 429, 529, ...
+    if (err instanceof TypeSafeError) return { ok: false, error: err.name }; // network error or timeout
+    throw err;
+  }
+}
+
+console.log(await healthCheck());
+```
+
+The System One probe is billed like any request, but a one-word state costs a handful of tokens. Skip it if listing models is enough.
 
 ---
 

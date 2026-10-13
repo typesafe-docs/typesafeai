@@ -231,10 +231,87 @@ scoreConfidence(levels.map((level) => answer.probabilities[level]));
 
 Worked example: `bug_severity` has probabilities `(0, 0.57, 0.43)`. Then `m = 1`, the spread is `0.43`, and `MAD_unif = 2/3`, so confidence is `1 - 0.43 / (2/3) ≈ 0.35`.
 
-## What low confidence usually means
+## Diagnosing low confidence
 
-- **Choice:** no option clearly beats the others. The options may overlap, or none of them fits (add `other`).
-- **Score:** the levels are ambiguous, the question measures more than one thing, or the state doesn't contain enough to go on.
+Low confidence is information about your question or your state, not noise. Look at **where** the probability went:
+
+| What `probabilities` looks like | Likely cause | Fix |
+|---|---|---|
+| Two options share most of the mass | The options overlap | Sharpen both descriptions so their boundary is explicit |
+| Mass spread over every option | None of them fits, or the state lacks the evidence | Add an `other` / `none` option; put the evidence in `state` and name it in the question |
+| Score mass on both ends | The question measures two things at once | Split it into two questions |
+| Score mass on two neighboring levels | The levels are vague | Give each level a structured description with examples |
+| Noul near 0.5 | Ambiguous or degree-type question | Tighten the yes/no boundary, or use a Score |
+
+**Python**
+
+```python
+from typesafe_sdk import Choice, TypeSafeClient
+
+client = TypeSafeClient()
+
+response = client.system_one(
+    state={"message": "The app crashes when I try to pay my invoice."},
+    questions={
+        "team": Choice(
+            instructions="Which team should handle `message`?",
+            criteria={
+                "billing": "Payments, invoices, refunds",
+                "technical": "Bugs, crashes, outages",
+                "other": "Anything that fits neither team",
+            },
+        ),
+    },
+)
+
+answer = response.choices["team"]
+ranked = sorted(answer.probabilities.items(), key=lambda kv: kv[1], reverse=True)
+(top, p1), (runner_up, p2) = ranked[0], ranked[1]
+
+if answer.confidence < 0.5:
+    if p1 + p2 > 0.9:
+        print(f"Torn between {top!r} and {runner_up!r}: make their boundary explicit in criteria")
+    elif top == "other":
+        print("No option fits: add the missing option")
+    else:
+        print("Mass is spread out: check that the state contains the evidence the question needs")
+```
+
+**TypeScript**
+
+<!-- ts-check run -->
+```ts
+import { choice, TypeSafeClient } from "@typesafe-ai/sdk";
+
+const client = new TypeSafeClient();
+
+const { answers } = await client.systemOne({
+  state: { message: "The app crashes when I try to pay my invoice." },
+  questions: {
+    team: choice("Which team should handle `message`?", {
+      billing: "Payments, invoices, refunds",
+      technical: "Bugs, crashes, outages",
+      other: "Anything that fits neither team",
+    }),
+  },
+});
+
+const answer = answers.team;
+const [[top, p1], [runnerUp, p2]] = Object.entries(answer.probabilities).sort((a, b) => b[1] - a[1]);
+
+if (answer.confidence < 0.5) {
+  if (p1 + p2 > 0.9) console.log(`Torn between "${top}" and "${runnerUp}": make their boundary explicit in criteria`);
+  else if (top === "other") console.log("No option fits: add the missing option");
+  else console.log("Mass is spread out: check that the state contains the evidence the question needs");
+}
+```
+
+## What confidence does and doesn't tell you
+
+- **It measures how concentrated the distribution is,** not whether the answer is correct. A confidently wrong answer is possible, typically when the question is written ambiguously or the state is adversarial.
+- **Thresholds don't transfer.** A threshold tuned on one question, model version, or language doesn't carry over to another. Calibrate per question on labeled examples, and pin the model version you tuned against ([Models → Aliases](12-models.md#aliases)).
+- **English gives the best calibration.** For other languages, measure accuracy against confidence on your own data before trusting a threshold ([Models → Language support](12-models.md#language-support-and-calibrating-thresholds)).
+- **It isn't authorization.** A confident "approve_transfer" is a reading of the text, not permission. Keep permission checks in code.
 
 ## When *not* to use confidence thresholds
 

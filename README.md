@@ -57,7 +57,7 @@ TypeSafe's models don't generate text. You send a **state** (the content to judg
 
 ### Python and TypeScript, side by side
 
-Every code example in the guide comes in **Python** and **TypeScript**, labeled and next to each other. The cookbook snippets also have TypeScript ports, marked as ports because the official cookbooks are Python-only. All 104 TypeScript snippets in the guide are **type-checked against the real `@typesafe-ai/sdk` in CI**, and the 32 self-contained ones also run against the offline mock ([`tools/check_doc_snippets.py`](tools/check_doc_snippets.py)).
+Every code example in the guide comes in **Python** and **TypeScript**, labeled and next to each other. The cookbook snippets also have TypeScript ports, marked as ports because the official cookbooks are Python-only. All 108 TypeScript snippets in the guide are **type-checked against the real `@typesafe-ai/sdk` in CI**, and the 37 self-contained ones also run against the offline mock ([`tools/check_doc_snippets.py`](tools/check_doc_snippets.py)).
 
 ### Runnable examples
 
@@ -84,7 +84,7 @@ You can mix all three in one call. Each question is evaluated **independently an
 Create one at <https://console.typesafe.ai/keys>, then export it:
 
 ```bash
-export TYPESAFE_API_KEY="ts-..."
+export TYPESAFE_API_KEY="your-key-here"
 ```
 
 ### 2. cURL

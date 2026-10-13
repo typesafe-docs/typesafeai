@@ -67,9 +67,71 @@ const { answers } = await client.systemOne({ state, questions: QUESTIONS });
 
 Only when you **can't build** the second request without the first answer: you need it to fetch new data, to change the state, or to pick the next options. Examples: [skill suggestion](cookbooks/skill_suggestion.md), [structure recovery](cookbooks/autoformat.md), [hierarchical classification](cookbooks/hierarchical_classification.md).
 
-### My Noul hovers around 0.5. What's wrong?
+### How many questions can one request hold? How big can the state be?
 
-The question is probably ambiguous, or it's really a question of degree. Tighten the boundary or switch to a Score:
+There's no documented limit on the number of questions. The limits are in tokens (Jev 1.13):
+
+| Limit | Value |
+|---|---|
+| Whole request | 64k tokens |
+| `state` plus the single longest question | 32k tokens |
+| Choice options | ≤ 255 per question |
+| Score levels | 2–10 per question |
+| Throughput | 100K tokens/s and 80 requests/s (adjusted dynamically) |
+
+Questions are evaluated independently and in parallel, so adding questions barely changes latency. Each one adds only its own tokens. Watch `usage.input_tokens` to see how close a request is to the budget:
+
+**Python**
+
+```python
+from typesafe_sdk import Noul, TypeSafeClient
+
+client = TypeSafeClient()
+CHECKS = {
+    "mentions_refund": "Does `message` ask for a refund?",
+    "mentions_cancel": "Does `message` ask to cancel a subscription?",
+    "is_angry": "Is the customer in `message` angry?",
+}
+
+response = client.system_one(
+    {"message": "Cancel my plan and refund last month, this is ridiculous."},
+    {key: Noul(instructions=text) for key, text in CHECKS.items()},  # many questions, one round trip
+)
+used = response.usage.input_tokens or 0  # Optional in the Python SDK
+print(f"{used} input tokens of the 64k request budget")
+```
+
+**TypeScript**
+
+<!-- ts-check run -->
+```ts
+import { noul, TypeSafeClient } from "@typesafe-ai/sdk";
+
+const client = new TypeSafeClient();
+const CHECKS = {
+  mentions_refund: "Does `message` ask for a refund?",
+  mentions_cancel: "Does `message` ask to cancel a subscription?",
+  is_angry: "Is the customer in `message` angry?",
+};
+
+const { usage } = await client.systemOne({
+  state: { message: "Cancel my plan and refund last month, this is ridiculous." },
+  questions: Object.fromEntries(Object.entries(CHECKS).map(([key, text]) => [key, noul(text)])), // one round trip
+});
+console.log(`${usage.input_tokens} input tokens of the 64k request budget`);
+```
+
+If a state is too large, filter it in code first; accuracy also drops as irrelevant material piles up. See [State → Send only what the question needs](03-state.md#send-only-what-the-question-needs).
+
+### Which models are there? Where does it run?
+
+**Jev** is the only System One model: `jev-latest` and `jev-preview` both point to `jev-1.13.0`. `GET /v1/models` lists what your account can use. TypeSafe doesn't publish hosting regions; for data handling and retention, see <https://docs.typesafe.ai/legal> and [Models → Data handling](12-models.md#data-handling).
+
+### What does a Noul probability near 0.5 mean?
+
+A Noul answer is P(yes). Near 0.5 means yes and no are about equally likely: the model can't decide from what it was given. It does **not** mean "half yes" or "medium". Treat it as *unsure*, not as an answer, and don't round it to a decision.
+
+The usual causes are an ambiguous question, a question that's really about degree, or a state that doesn't contain the evidence. Tighten the boundary, point at the evidence, or switch to a Score:
 
 **Python**
 
@@ -276,7 +338,7 @@ Jev isn't trained on customer requests or responses, and enterprise customers ca
 
 ### Is non-English text supported?
 
-Yes, but accuracy is best in English. Test on your own data and watch the confidence values.
+Yes, but accuracy is best in English, and a confidence threshold tuned on English doesn't carry over. Measure accuracy above your threshold per language before trusting it. See [Models → Language support and calibrating thresholds](12-models.md#language-support-and-calibrating-thresholds), which has code for that check.
 
 ### The agent invents request or response fields
 

@@ -85,28 +85,15 @@ const { data, response, requestId } = await client.systemOne({ state, questions:
 
 [→ JS guide](11-sdk-javascript.md) · [→ Full JS reference](reference/javascript/README.md)
 
-## Confidence formulas
+## Confidence at a glance
 
-**Python**
+| Type | Field | Range | Formula |
+|---|---|---|---|
+| Noul | none (use `noul`) | 0–1 | `abs(2p − 1)` if you need one |
+| Choice | `confidence` | 0–1 | top probability, rescaled so uniform = 0 |
+| Score | `confidence` | 0–1 | 1 − spread around the top level ÷ spread of a uniform distribution |
 
-```python
-noul_conf   = abs(2 * p - 1)
-choice_conf = (p_max - 1/n) / (1 - 1/n)
-score_conf  = max(0, 1 - sum(p_i * abs(i - m)) / (sum(abs(i - (n-1)/2) for i in range(n)) / n))
-```
-
-**TypeScript**
-
-```ts
-const noulConf = (p: number) => Math.abs(2 * p - 1);
-const choiceConf = (pMax: number, n: number) => (pMax - 1 / n) / (1 - 1 / n);
-const scoreConf = (p: number[]) => {
-  const n = p.length, m = p.indexOf(Math.max(...p));
-  const spread = p.reduce((s, pi, i) => s + pi * Math.abs(i - m), 0);
-  const even = p.reduce((s, _, i) => s + Math.abs(i - (n - 1) / 2), 0) / n;
-  return Math.max(0, 1 - spread / even);
-};
-```
+Code for all three: [→ How confidence is calculated](05-confidence.md#how-confidence-is-calculated)
 
 | Confidence | Do |
 |---|---|
@@ -148,6 +135,7 @@ Thresholds should **scale with the cost of being wrong**. [→ Confidence](05-co
 | Rate limits | 100K tokens/s and 80 requests/s (dynamic) |
 | Context | 64k per request; 32k for state plus the longest question |
 | Options | Choice ≤ 255; Score 2–10 levels |
+| Questions per request | No documented count limit; the token limits above apply |
 | Errors | 401 · 422 · 429 · 529 (the SDKs retry 408, 429, and 5xx) |
 
 [→ Models](12-models.md)

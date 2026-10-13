@@ -420,6 +420,7 @@ raw_answers = result.raw_http_response.json()["answers"]
 
 | Version | Date | Change |
 |---|---|---|
+| v0.7.3 | 2026-10-09 | Fix async client crashes during concurrent TLS connections (`truststore<=0.10.4`); more request validation; pooled connections kept alive 30 s; new [Performance](reference/python/usage.md#performance) docs |
 | v0.7.2 | 2026-09-26 | `http2` extra |
 | v0.7.1 | 2026-09-21 | API key validated early and kept out of logged exceptions; gateway examples |
 | v0.7.0 | 2026-09-18 | **Breaking:** msgspec → pydantic. New `response_model=`. Fix for serializing `str` subclasses. |

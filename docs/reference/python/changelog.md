@@ -7,6 +7,29 @@
 
 <a id="changelog"></a>
 
+<a id="v073-2026-10-09"></a>
+
+## v0.7.3 (2026-10-09)
+
+<a id="bug-fixes"></a>
+
+### Bug fixes
+
+* prevent async client crashes during concurrent TLS connections with `truststore<=0.10.4`
+* add more request validation checks
+
+<a id="documentation"></a>
+
+### `Documentation`
+
+* add a new Performance section with tips for high-concurrency usage
+
+<a id="performance"></a>
+
+### `Performance`
+
+* update the default settings to keep all pooled connections alive for 30 seconds
+
 <a id="v072-2026-09-26"></a>
 
 ## v0.7.2 (2026-09-26)
@@ -17,7 +40,7 @@
 
 * add `http2` extra to `typesafe-sdk` package
 
-<a id="documentation"></a>
+<a id="documentation_1"></a>
 
 ### `Documentation`
 
@@ -27,13 +50,13 @@
 
 ## v0.7.1 (2026-09-21)
 
-<a id="bug-fixes"></a>
+<a id="bug-fixes_1"></a>
 
 ### Bug fixes
 
 * validate the API key early and exclude the value from logged exceptions
 
-<a id="documentation_1"></a>
+<a id="documentation_2"></a>
 
 ### `Documentation`
 
@@ -49,7 +72,7 @@
 
 * ser/de library has been changed from `msgspec` to `pydantic`
 
-<a id="bug-fixes_1"></a>
+<a id="bug-fixes_2"></a>
 
 ### Bug fixes
 
@@ -78,14 +101,14 @@
 * improve type annotations on SDK inputs to accept abstract types like `Mapping` and `Sequence`
 * improve error messages to include http details and metadata
 
-<a id="bug-fixes_2"></a>
+<a id="bug-fixes_3"></a>
 
 ### Bug fixes
 
 * handle invalid values in `RetryPolicy`
 * make exceptions and responses picklable
 
-<a id="documentation_2"></a>
+<a id="documentation_3"></a>
 
 ### `Documentation`
 

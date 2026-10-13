@@ -31,7 +31,7 @@ TypeSafe's models don't generate text. You send a **state** (the content to judg
 | 5 | [Confidence](docs/05-confidence.md) | What confidence means, the formulas, thresholds that scale with risk |
 | 6 | [How to build with TypeSafe](docs/06-building-with-typesafe.md) | Eight design steps, spam and tool-trace decomposition, a full triage workflow |
 | 7 | [Patterns](docs/07-patterns.md) | Speculative fan-out, confidence-gated routing, composite scoring, intent routing |
-| 8 | [Cookbooks overview](docs/08-cookbooks.md) | The 18 official recipes summarized, each with its core snippet |
+| 8 | [Cookbooks overview](docs/08-cookbooks.md) | The 20 official recipes summarized, each with its core snippet |
 | 9 | [HTTP API reference](docs/09-api-reference.md) | `POST /v1/systemone`, `GET /v1/models`, schemas, errors, DIY retries |
 | 10 | [Python SDK guide](docs/10-sdk-python.md) | Sync and async, typed responses, retries, errors, gateways, HTTP/2 |
 | 11 | [JavaScript / TypeScript SDK guide](docs/11-sdk-javascript.md) | `choice()`, `noul()`, `score()`, inferred types, `APIPromise`, errors |
@@ -44,11 +44,11 @@ TypeSafe's models don't generate text. You send a **state** (the content to judg
 
 | Area | Recipes |
 |---|---|
-| Self-consistency | [Nouls](docs/cookbooks/consistency_noul_cookbook.md) · [Choices](docs/cookbooks/consistency_choice_cookbook.md) |
-| Batching | [Parallel questions](docs/cookbooks/parallel_questions.md) |
-| How-to | [Re-ranking](docs/cookbooks/rerank_typesafe.md) · [Line-by-line search](docs/cookbooks/semantic_find.md) · [Structure recovery](docs/cookbooks/autoformat.md) · [Function calling](docs/cookbooks/function_calling.md) · [Skill suggestion](docs/cookbooks/skill_suggestion.md) · [Entity alignment](docs/cookbooks/entity_alignment.md) · [Classifying RAG passages](docs/cookbooks/classifying_rag_passages.md) · [Citation check](docs/cookbooks/citation_check.md) · [LLM guardrails](docs/cookbooks/llm_guardrails.md) |
-| Extraction | [SDE cascade](docs/cookbooks/sde_cascade.md) · [Date extraction](docs/cookbooks/date_extraction_cookbook.md) · [Pre-parsed values](docs/cookbooks/pre_parsed_value_extraction_cookbook.md) |
-| Classification | [Hierarchical](docs/cookbooks/hierarchical_classification.md) · [Autoresearch features](docs/cookbooks/autoresearch_feature_discovery.md) · [Using confidence](docs/cookbooks/classification_using_confidence.md) |
+| LLMs and agents | [Function calling](docs/cookbooks/function_calling.md) · [Skill suggestion](docs/cookbooks/skill_suggestion.md) · [LLM guardrails](docs/cookbooks/llm_guardrails.md) · [Citation check](docs/cookbooks/citation_check.md) · [Classifying RAG passages](docs/cookbooks/classifying_rag_passages.md) · [Simple memory system](docs/cookbooks/basic_memory.md) |
+| Classification | [Hierarchical](docs/cookbooks/hierarchical_classification.md) · [Using confidence](docs/cookbooks/classification_using_confidence.md) · [Twitch chat filter](docs/cookbooks/twitch_chat_filter.md) |
+| Extraction | [SDE cascade](docs/cookbooks/sde_cascade.md) · [Date extraction](docs/cookbooks/date_extraction_cookbook.md) · [Pre-parsed values](docs/cookbooks/pre_parsed_value_extraction_cookbook.md) · [Structure recovery](docs/cookbooks/autoformat.md) |
+| Search and matching | [Re-ranking](docs/cookbooks/rerank_typesafe.md) · [Line-by-line search](docs/cookbooks/semantic_find.md) · [Entity alignment](docs/cookbooks/entity_alignment.md) |
+| Techniques | [Self-consistency: nouls](docs/cookbooks/consistency_noul_cookbook.md) · [Self-consistency: choices](docs/cookbooks/consistency_choice_cookbook.md) · [Parallel questions](docs/cookbooks/parallel_questions.md) · [Autoresearch features](docs/cookbooks/autoresearch_feature_discovery.md) |
 
 ### Full SDK API reference (generated from the official docs)
 
@@ -57,7 +57,7 @@ TypeSafe's models don't generate text. You send a **state** (the content to judg
 
 ### Python and TypeScript, side by side
 
-Every code example in the guide comes in **Python** and **TypeScript**, labeled and next to each other. The cookbook snippets also have TypeScript ports, marked as ports because the official cookbooks are Python-only. All 108 TypeScript snippets in the guide are **type-checked against the real `@typesafe-ai/sdk` in CI**, and the 37 self-contained ones also run against the offline mock ([`tools/check_doc_snippets.py`](tools/check_doc_snippets.py)).
+Every code example in the guide comes in **Python** and **TypeScript**, labeled and next to each other. The cookbook snippets also have TypeScript ports, marked as ports because the official cookbooks are Python-only. All 110 TypeScript snippets in the guide are **type-checked against the real `@typesafe-ai/sdk` in CI**, and the 39 self-contained ones also run against the offline mock ([`tools/check_doc_snippets.py`](tools/check_doc_snippets.py)).
 
 ### Runnable examples
 
@@ -216,7 +216,7 @@ console.log(answers.category.choice, answers.urgency.score, answers.refund.noul)
 ├── docs/
 │   ├── 01-introduction.md … 15-faq.md   ← the guide (hand-written, curated)
 │   ├── 04-primitives/                    ← Choice, Score, Noul, structure
-│   ├── cookbooks/                        ← 18 full recipes (converted from the official notebooks)
+│   ├── cookbooks/                        ← 20 full recipes (converted from the official notebooks)
 │   ├── reference/
 │   │   ├── python/                       ← full typesafe-sdk API reference
 │   │   └── javascript/                   ← full @typesafe-ai/sdk API reference

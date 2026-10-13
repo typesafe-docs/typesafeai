@@ -6,17 +6,19 @@ Each official cookbook is a worked example: a real dataset, the TypeSafe questio
 
 > Snippets are condensed from the official notebooks. Caching, timing, and plotting code is stripped out, and some glue code (marked *illustrative*) is simplified to show the idea. Helpers such as `client`, `line_id`, and `tag` come from each cookbook's setup cells. Several cookbooks pin `jev-1.12`.
 
+Grouped the way the [official index](https://docs.typesafe.ai/cookbooks) groups them:
+
 | Category | Cookbook | Level |
 |---|---|---|
-| Self-consistency | [Nouls](#self-consistency-nouls) · [Choices](#self-consistency-choices) | Beginner |
-| Batching | [Parallel questions](#parallel-questions) | Beginner |
-| How-to | [Re-ranking](#re-ranking) · [Line-by-line search](#line-by-line-search) · [Structure recovery](#structure-recovery) · [Entity alignment](#knowledge-graph-entity-alignment) · [Citation check](#double-checking-citations) | Beginner |
-| How-to | [Function calling](#function-calling) · [Skill suggestion](#skill-suggestion) · [RAG passages](#classifying-rag-passages) · [LLM guardrails](#guardrails-for-llms) | Intermediate |
-| Extraction | [Date extraction](#date-extraction) · [Pre-parsed values](#pre-parsed-value-extraction) | Beginner |
-| Extraction | [SDE cascade](#sde-cascade) | Intermediate |
-| Classification | [Classification using confidence](#classification-using-confidence) | Beginner |
+| LLMs and agents | [Citation check](#double-checking-citations) · [Simple memory system](#simple-memory-system) | Beginner |
+| LLMs and agents | [Function calling](#function-calling) · [Skill suggestion](#skill-suggestion) · [LLM guardrails](#guardrails-for-llms) · [RAG passages](#classifying-rag-passages) | Intermediate |
+| Classification | [Classification using confidence](#classification-using-confidence) · [Twitch chat filter](#twitch-chat-filter) | Beginner |
 | Classification | [Hierarchical classification](#hierarchical-classification) | Intermediate |
-| Classification | [Autoresearch feature discovery](#autoresearch-feature-discovery) | Advanced |
+| Extraction | [Date extraction](#date-extraction) · [Pre-parsed values](#pre-parsed-value-extraction) · [Structure recovery](#structure-recovery) | Beginner |
+| Extraction | [SDE cascade](#sde-cascade) | Intermediate |
+| Search and matching | [Re-ranking](#re-ranking) · [Line-by-line search](#line-by-line-search) · [Entity alignment](#knowledge-graph-entity-alignment) | Beginner |
+| Techniques | [Self-consistency: nouls](#self-consistency-nouls) · [Self-consistency: choices](#self-consistency-choices) · [Parallel questions](#parallel-questions) | Beginner |
+| Techniques | [Autoresearch feature discovery](#autoresearch-feature-discovery) | Advanced |
 
 ---
 
@@ -985,6 +987,156 @@ const kept = passages.filter(
 );
 ```
 
+## Simple memory system
+
+📖 **[Full recipe (all code + outputs)](cookbooks/basic_memory.md)** · Official: <https://docs.typesafe.ai/cookbooks/basic_memory>
+
+Gives Jev memory across requests. After each call, a **Noul gate** asks whether the request states a lasting fact about the customer, such as their edition, plan, or contract. If it does, the request and Jev's answer are saved, and a wrapper adds them to that customer's later states. On the official example, routing six later support tickets goes from **2/6 correct without memory to 6/6 with it**.
+
+### What Jev decides vs. what stays deterministic
+
+| Jev (probabilistic) | Your code (deterministic) |
+|---|---|
+| The routing answer: a Choice over support teams | Comparing P(remember) against `REMEMBER_AT = 0.5` and deciding to save |
+| The gate: a Noul giving P(the request states a lasting customer fact) | The memory store: a plain dict, one list per `customer.id` |
+| | Which memories go into the state (all of them, under `earlier_tickets_from_this_customer`) |
+| | The memory record: the original state (before memories were added) plus `jev_answered` |
+| | Running the two requests in order: route first, then gate |
+
+The gate counts only what the customer or support staff wrote in `request.ticket`. Anything that appears only in Jev's answer doesn't count, so an answer that relied on an earlier memory can't be saved again as a new fact. Memory only grows: there's no size limit, relevance filter, or expiry until you add one.
+
+**Python**
+
+```python
+from typesafe_sdk import Noul, NoulCriteria, SystemOneResponse, TypeSafeClient
+
+client = TypeSafeClient(model="jev-1.13.0")
+REMEMBER_AT = 0.5  # starting threshold: evaluate it against your own labeled examples
+MEMORY_KEY = "earlier_tickets_from_this_customer"
+MEMORIES: dict[str, list[dict]] = {}  # customer ID -> that customer's saved memories
+
+GATE = {
+    "remember": Noul(
+        instructions=(
+            "In `request.ticket`, does the thread state a lasting fact about the customer that "
+            "should change how their future, unrelated tickets are handled? Count what the "
+            "customer or our support staff wrote in `request.ticket`. `jev_answered` shows how "
+            "the ticket was routed, which may rely on things learned earlier: do not count "
+            "anything it says or implies."
+        ),
+        criteria=NoulCriteria(
+            true="Yes: in `request.ticket` the customer or our support staff state something about the "
+            "customer that stays true after this ticket, such as the product edition or operating "
+            "system they run, their plan or contract, or a standing preference.",
+            false="No: `request.ticket` only contains things specific to this one ticket or moment, such "
+            "as a one-off request, today's schedule, or the device they happen to be typing on; or "
+            "the lasting fact appears only in `jev_answered`.",
+        ),
+    ),
+}
+
+
+def answer_text(question, answer):
+    """The readable part of an answer: the chosen option's description, or the number."""
+    if answer.type == "choice":
+        return question.criteria[answer.choice]
+    return answer.noul if answer.type == "noul" else answer.score
+
+
+def as_memory(state: dict, questions: dict, response: SystemOneResponse) -> dict:
+    # The original state, not the one with memories added, so memories never nest
+    return {
+        "request": state,
+        "jev_answered": {q.instructions: answer_text(q, response.answers[qid]) for qid, q in questions.items()},
+    }
+
+
+def ask_with_memory(state: dict, questions: dict) -> SystemOneResponse:
+    """client.system_one, plus memory: same arguments, same return value."""
+    # 1. Answer the call with this customer's existing memories.
+    saved = MEMORIES.get(state["customer"]["id"], [])
+    response = client.system_one({**state, MEMORY_KEY: saved} if saved else state, questions)
+
+    # 2. Ask Jev whether the original request states a fact worth keeping; the decision is code.
+    memory = as_memory(state, questions, response)
+    if client.system_one(memory, GATE).nouls["remember"].noul >= REMEMBER_AT:
+        MEMORIES.setdefault(state["customer"]["id"], []).append(memory)
+    return response
+```
+
+**TypeScript** *(port — the official cookbook is Python-only)*
+
+<!-- ts-check run -->
+```ts
+import { choice, noul, TypeSafeClient, type JsonValue, type Question, type Questions, type ResultFor } from "@typesafe-ai/sdk";
+
+const client = new TypeSafeClient({ defaultModel: "jev-1.13.0" });
+const REMEMBER_AT = 0.5; // starting threshold: evaluate it against your own labeled examples
+const MEMORY_KEY = "earlier_tickets_from_this_customer";
+
+type State = { customer: { id: string; company: string }; ticket: { [k: string]: JsonValue } };
+type Memory = { request: State; jev_answered: { [instructions: string]: JsonValue } };
+const MEMORIES = new Map<string, Memory[]>(); // customer ID -> that customer's saved memories
+
+const GATE = {
+  remember: noul(
+    "In `request.ticket`, does the thread state a lasting fact about the customer that " +
+      "should change how their future, unrelated tickets are handled? Count what the " +
+      "customer or our support staff wrote in `request.ticket`. `jev_answered` shows how " +
+      "the ticket was routed, which may rely on things learned earlier: do not count " +
+      "anything it says or implies.",
+    {
+      true:
+        "Yes: in `request.ticket` the customer or our support staff state something about the " +
+        "customer that stays true after this ticket, such as the product edition or operating " +
+        "system they run, their plan or contract, or a standing preference.",
+      false:
+        "No: `request.ticket` only contains things specific to this one ticket or moment, such " +
+        "as a one-off request, today's schedule, or the device they happen to be typing on; or " +
+        "the lasting fact appears only in `jev_answered`.",
+    },
+  ),
+};
+
+/** The readable part of an answer: the chosen option's description, or the number. */
+function answerText(question: Question, answer: ResultFor<Question>): JsonValue {
+  if (answer.type === "choice" && question.type === "choice") return question.criteria[answer.choice] ?? answer.choice;
+  return answer.type === "noul" ? answer.noul : answer.type === "score" ? answer.score : answer.choice;
+}
+
+/** client.systemOne, plus memory: same arguments, same return value. */
+async function askWithMemory<const Q extends Questions>(state: State, questions: Q) {
+  // 1. Answer the call with this customer's existing memories.
+  const saved = MEMORIES.get(state.customer.id) ?? [];
+  const result = await client.systemOne({ state: saved.length ? { ...state, [MEMORY_KEY]: saved } : state, questions });
+
+  // 2. Ask Jev whether the original request states a fact worth keeping; the decision is code.
+  const memory: Memory = {
+    request: state, // the original state, not the one with memories added, so memories never nest
+    jev_answered: Object.fromEntries(
+      Object.entries(questions).map(([qid, q]) => [JSON.stringify(q.instructions), answerText(q, result.answers[qid])]),
+    ),
+  };
+  const { answers } = await client.systemOne({ state: memory, questions: GATE });
+  if (answers.remember.noul >= REMEMBER_AT) MEMORIES.set(state.customer.id, [...saved, memory]);
+  return result;
+}
+
+// Same call shape as client.systemOne; answer types are still inferred
+const ROUTE = {
+  team: choice("Which support team should handle `ticket`?", {
+    cloud_ops: "Cloud team: problems with the hosted cloud edition, run by us",
+    selfhosted_windows: "Self-hosted team, Windows: installs, upgrades and performance on Windows Server",
+    billing: "Billing: invoices, payments, seats and plan changes for self-serve plans",
+    none_suitable: "None of these teams fits the ticket",
+  }),
+};
+const customer = { id: "C-1042", company: "Harbor Logistics" };
+await askWithMemory({ customer, ticket: { text: "We run your self-hosted edition on Windows Server 2022." } }, ROUTE);
+const { answers } = await askWithMemory({ customer, ticket: { text: "Dashboards have been really slow since this morning." } }, ROUTE);
+console.log(answers.team.choice);
+```
+
 ## Guardrails for LLMs
 
 📖 **[Full recipe (all code + outputs)](cookbooks/llm_guardrails.md)** · Official: <https://docs.typesafe.ai/cookbooks/llm_guardrails>
@@ -1509,6 +1661,137 @@ async function ask(text: string) {
 
 const result = await ask(filingText);
 const label = result.confidence >= THRESHOLD ? result.group : DIVISION_OF[result.group];
+```
+
+## Twitch chat filter
+
+📖 **[Full recipe (all code + outputs)](cookbooks/twitch_chat_filter.md)** · Official: <https://docs.typesafe.ai/cookbooks/twitch_chat_filter>
+
+Sorts each chat message with **one request and three questions**: a Choice for what kind of message it is, a Noul for toxicity, and a Noul for spoilers. Plain code in `decide()` turns the answers into show, highlight, hide, or blur. Changing a rule (for example "hide backseat advice") re-runs only `decide()`, with no new request. On the 29 sample messages, 7 were hidden, 2 blurred, and 6 highlighted.
+
+**Python**
+
+```python
+from typesafe_sdk import Choice, Noul, NoulCriteria, Question, TypeSafeClient
+
+client = TypeSafeClient(model="jev-1.13.0")
+STREAM = {"title": "Blind first playthrough!", "game": "Elden Ring"}
+
+QUESTIONS: dict[str, Question] = {
+    "category": Choice(
+        instructions="Which category best describes the main purpose of `message.text`?",
+        criteria={
+            "question": "A genuine request for information from the streamer or chat, "
+            "not gameplay instructions phrased as a question or a promotional pitch",
+            "hype": "Cheering, reactions, or repeated emotes (PogChamp, LUL, GG, W, "
+            "lets gooo); repetition alone does not make cheering spam",
+            "conversation": "Ordinary chatter, opinions, replies, useful shared links, "
+            "or any message whose main purpose does not fit the other categories",
+            "backseat": "Unrequested gameplay advice telling the streamer what to do, "
+            "including instructions phrased as a question; not a request for information",
+            "spam": "Unsolicited advertising, self-promotion, follower selling, or "
+            "promotional links; not ordinary cheering, repeated emotes, or a useful link",
+        },
+    ),
+    "toxic": Noul(
+        instructions="Is this message insulting, hateful or harassing towards someone?",
+        criteria=NoulCriteria(
+            true="Insults, slurs, threats or personal attacks on the streamer or another viewer",
+            false="Friendly, neutral, or light banter with no target",
+        ),
+    ),
+    "spoiler": Noul(instructions="Does this message reveal a plot point or ending of the game being played?"),
+}
+
+
+def classify(user: str, text: str) -> dict:
+    response = client.system_one({"stream": STREAM, "message": {"user": user, "text": text}}, QUESTIONS)
+    return {
+        "category": response.choices["category"].choice,
+        "toxic": response.nouls["toxic"].noul,
+        "spoiler": response.nouls["spoiler"].noul,
+    }
+
+
+# The rules live in code: editing them needs no new request
+RULES = {"question": "highlight", "hype": "show", "conversation": "show", "backseat": "hide", "spam": "hide"}
+TOXIC_AT = 0.7    # hide at or above this chance of toxic
+SPOILER_AT = 0.7  # blur at or above this chance of a spoiler
+
+
+def decide(result: dict, rules: dict = RULES) -> str:
+    if result["toxic"] >= TOXIC_AT:
+        return "hide (toxic)"
+    action = rules[result["category"]]
+    if action == "hide":
+        return f"hide ({result['category']})"
+    if result["spoiler"] >= SPOILER_AT:
+        return "blur (spoiler)"
+    return action
+```
+
+**TypeScript** *(port — the official cookbook is Python-only)*
+
+<!-- ts-check run -->
+```ts
+import { choice, noul, TypeSafeClient } from "@typesafe-ai/sdk";
+
+const client = new TypeSafeClient({ defaultModel: "jev-1.13.0" });
+const STREAM = { title: "Blind first playthrough!", game: "Elden Ring" };
+
+const QUESTIONS = {
+  category: choice("Which category best describes the main purpose of `message.text`?", {
+    question:
+      "A genuine request for information from the streamer or chat, " +
+      "not gameplay instructions phrased as a question or a promotional pitch",
+    hype: "Cheering, reactions, or repeated emotes (PogChamp, LUL, GG, W, lets gooo); repetition alone does not make cheering spam",
+    conversation:
+      "Ordinary chatter, opinions, replies, useful shared links, or any message whose main purpose does not fit the other categories",
+    backseat:
+      "Unrequested gameplay advice telling the streamer what to do, including instructions phrased as a question; not a request for information",
+    spam: "Unsolicited advertising, self-promotion, follower selling, or promotional links; not ordinary cheering, repeated emotes, or a useful link",
+  }),
+  toxic: noul("Is this message insulting, hateful or harassing towards someone?", {
+    true: "Insults, slurs, threats or personal attacks on the streamer or another viewer",
+    false: "Friendly, neutral, or light banter with no target",
+  }),
+  spoiler: noul("Does this message reveal a plot point or ending of the game being played?"),
+};
+
+type Category = keyof typeof QUESTIONS.category.criteria;
+type Result = { category: Category; toxic: number; spoiler: number };
+
+async function classify(user: string, text: string): Promise<Result> {
+  const { answers } = await client.systemOne({ state: { stream: STREAM, message: { user, text } }, questions: QUESTIONS });
+  return { category: answers.category.choice, toxic: answers.toxic.noul, spoiler: answers.spoiler.noul };
+}
+
+// The rules live in code: editing them needs no new request
+const RULES: Record<Category, "highlight" | "show" | "hide"> = {
+  question: "highlight", hype: "show", conversation: "show", backseat: "hide", spam: "hide",
+};
+const TOXIC_AT = 0.7; // hide at or above this chance of toxic
+const SPOILER_AT = 0.7; // blur at or above this chance of a spoiler
+
+function decide(result: Result, rules = RULES): string {
+  if (result.toxic >= TOXIC_AT) return "hide (toxic)";
+  const action = rules[result.category];
+  if (action === "hide") return `hide (${result.category})`;
+  if (result.spoiler >= SPOILER_AT) return "blur (spoiler)";
+  return action;
+}
+
+// Up to eight messages at a time, as in the official cookbook
+const chat = [
+  ["backseat_bert", "go left, there's a site of grace behind the tree"],
+  ["LoreHound", "wait till you find out Ranni planned the Night of Black Knives"],
+  ["cozy_cat", "you're so bad at this boss lmao, love you tho"],
+] as const;
+for (let i = 0; i < chat.length; i += 8) {
+  const batch = chat.slice(i, i + 8);
+  const results = await Promise.all(batch.map(([user, text]) => classify(user, text)));
+  results.forEach((r, j) => console.log(`${batch[j][0]}: ${decide(r)}`));
+}
 ```
 
 ## Hierarchical classification

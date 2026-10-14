@@ -339,19 +339,38 @@ client = TypeSafeClient(
 
 `RetryPolicy` fields:
 
-| Field | Meaning |
-|---|---|
-| `max_retries` | Retries after the first attempt. `0` disables retries. |
-| `backoff_initial` | First delay in seconds, doubled each attempt up to `backoff_max`. |
-| `backoff_max` | Maximum delay in seconds. |
-| `backoff_jitter` | Fraction (0–1) of each delay randomly subtracted. |
-| `http_statuses` | HTTP status codes to retry. |
-| `respect_retry_after` | Honor `Retry-After` / `retry-after-ms`. |
-| `api_connection_error` | Retry connection failures. |
-| `api_timeout_error` | Retry timeouts. |
-| `exceptions` | Extra exception types that trigger a retry. |
-| `predicate` | `callable(exc) -> bool`. Returning `True` triggers a retry. |
-| `timeout` | **Total** retry budget per call in seconds, including delays. `None` means no limit. |
+| Field | Default | Meaning |
+|---|---|---|
+| `max_retries` | `2` | Retries after the first attempt. `0` disables retries. |
+| `backoff_initial` | `0.5` | First delay in seconds, doubled each attempt up to `backoff_max`. |
+| `backoff_max` | `5.0` | Maximum delay in seconds. |
+| `backoff_jitter` | `0.25` | Fraction (0–1) of each delay randomly subtracted. |
+| `http_statuses` | `408`, `429`, `500–599` | HTTP status codes to retry. `529` falls inside `500–599`. |
+| `respect_retry_after` | `True` | Honor `Retry-After` / `retry-after-ms`. |
+| `api_connection_error` | `True` | Retry connection failures. |
+| `api_timeout_error` | `True` | Retry timeouts. |
+| `exceptions` | `set()` | Extra exception types that trigger a retry. |
+| `predicate` | `None` | `callable(exc) -> bool`. Returning `True` triggers a retry. |
+| `timeout` | `30.0` | **Total** retry budget per call in seconds, including delays. `None` means no limit. |
+
+### Two different timeouts
+
+| Setting | Default | Limits |
+|---|---|---|
+| `TypeSafeClient(timeout=...)` / `system_one(timeout=...)` | `10.0` s | **Each** HTTP attempt |
+| `RetryPolicy(timeout=...)` | `30.0` s | The **whole** call: every attempt plus the delays between them |
+
+With the defaults, a call makes at most 3 attempts (1 + `max_retries=2`), each limited to 10 s, and the SDK stops before any retry whose delay would reach or pass the 30 s budget. It then raises the last error.
+
+```python
+from typesafe_sdk import RetryPolicy, TypeSafeClient
+
+# Interactive path: fail within ~3 s overall
+fast = TypeSafeClient(timeout=2.0, retry=RetryPolicy(max_retries=1, timeout=3.0))
+
+# Batch job: be patient with 429/529
+patient = TypeSafeClient(timeout=15.0, retry=RetryPolicy(max_retries=6, backoff_max=20.0, timeout=120.0))
+```
 
 ```python
 RetryPolicy(
@@ -420,6 +439,7 @@ raw_answers = result.raw_http_response.json()["answers"]
 
 | Version | Date | Change |
 |---|---|---|
+| v0.7.4 | 2026-10-09 | `NaN`, `Infinity`, and `-Infinity` anywhere in the request body are sent as the strings `"NaN"`, `"Infinity"`, `"-Infinity"` (JSON has no such tokens). Not yet in the official changelog; taken from the package source. |
 | v0.7.3 | 2026-10-09 | Fix async client crashes during concurrent TLS connections (`truststore<=0.10.4`); more request validation; pooled connections kept alive 30 s; new [Performance](reference/python/usage.md#performance) docs |
 | v0.7.2 | 2026-09-26 | `http2` extra |
 | v0.7.1 | 2026-09-21 | API key validated early and kept out of logged exceptions; gateway examples |

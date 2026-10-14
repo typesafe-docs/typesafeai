@@ -4,6 +4,22 @@
 
 There are four ways in: **try** it in the Playground, **call** the HTTP API, **code** against an SDK, or **vibe** with the agent skill.
 
+## Before you start: console, API key, pricing
+
+| What | Where |
+|---|---|
+| Sign in, try requests in the browser | <https://console.typesafe.ai/playground> |
+| Create an API key | <https://console.typesafe.ai/keys> |
+| Price (Jev 1.13) | $0.042 per million **input** tokens; output tokens are free ([cost math](12-models.md#rough-cost-math)) |
+| Rate limits | 100K tokens/s and 80 requests/s, adjusted dynamically ([limits](12-models.md#current-model-jev-113-jev-1130)) |
+| Higher limits, enterprise terms, zero data retention | sales@typesafe.ai |
+
+Both SDKs and every example here read the key from `TYPESAFE_API_KEY`:
+
+```bash
+export TYPESAFE_API_KEY="your-key-here"
+```
+
 ## Try it: the Playground
 
 1. Open <https://console.typesafe.ai/playground> and log in.

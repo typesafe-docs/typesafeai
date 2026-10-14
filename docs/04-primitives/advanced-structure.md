@@ -548,6 +548,83 @@ const requestsCredentials = noul(
 ```
 
 
+## What examples in criteria cost, and whether they help
+
+Examples in `criteria` (and anything else in a question) are part of the request:
+
+- **Cost:** they're input tokens, billed like the state. A question's tokens are paid on every request that includes it.
+- **Limits:** they count toward the 64k request limit, and the longest question counts toward the 32k limit together with the state ([Models](../12-models.md#current-model-jev-113-jev-1130)).
+- **Accuracy:** examples that resemble real inputs help separate neighboring options or levels, especially at a subtle boundary. The docs don't give a recommended number, and more isn't automatically better: an example that sits near the boundary teaches more than several obvious ones. [Score → Structured level descriptions](score.md#structured-level-descriptions) shows a measured case: a matching example raised confidence from 0.35 to 0.96, while an unrelated one changed nothing.
+
+So measure. Run the same labeled inputs with and without examples and compare accuracy against `usage.input_tokens`:
+
+**Python**
+
+```python
+from typesafe_sdk import Score, TypeSafeClient
+
+client = TypeSafeClient(model="jev-1.13.0")  # pin, so the comparison isn't split across versions
+Q = "How severe is the reported issue?"
+VARIANTS: dict[str, Score] = {
+    "plain": Score(instructions=Q, criteria=["Cosmetic; no impact to functionality", "Broken or degraded, workaround exists", "Blocking; no workaround"]),
+    "with examples": Score(instructions=Q, criteria=[
+        {"what": "Cosmetic; no impact to functionality", "examples": ["typo in a label", "misaligned icon"]},
+        {"what": "Broken or degraded, workaround exists", "examples": ["export fails in one browser but works in another"]},
+        {"what": "Blocking; no workaround", "examples": ["cannot log in", "data loss"]},
+    ]),
+}
+LABELED = [  # use a few dozen real, labeled inputs
+    ("The Save button is slightly off-center on mobile.", 0),
+    ("PDF export hangs, but CSV export still works.", 1),
+    ("Nobody on our team can sign in since the update.", 2),
+]
+
+for name, severity in VARIANTS.items():
+    correct = tokens = 0
+    for text, level in LABELED:
+        r = client.system_one(text, {"severity": severity})
+        correct += round(r.scores["severity"].score) == level
+        tokens += r.usage.input_tokens or 0
+    print(f"{name:>14}: {correct}/{len(LABELED)} correct, {tokens / len(LABELED):.0f} input tokens per call")
+```
+
+**TypeScript**
+
+<!-- ts-check run -->
+```ts
+import { score, TypeSafeClient } from "@typesafe-ai/sdk";
+
+const client = new TypeSafeClient({ defaultModel: "jev-1.13.0" }); // pin, so the comparison isn't split across versions
+const Q = "How severe is the reported issue?";
+const VARIANTS = {
+  plain: score(Q, ["Cosmetic; no impact to functionality", "Broken or degraded, workaround exists", "Blocking; no workaround"]),
+  "with examples": score(Q, [
+    { what: "Cosmetic; no impact to functionality", examples: ["typo in a label", "misaligned icon"] },
+    { what: "Broken or degraded, workaround exists", examples: ["export fails in one browser but works in another"] },
+    { what: "Blocking; no workaround", examples: ["cannot log in", "data loss"] },
+  ]),
+};
+const LABELED: [text: string, level: number][] = [
+  // use a few dozen real, labeled inputs
+  ["The Save button is slightly off-center on mobile.", 0],
+  ["PDF export hangs, but CSV export still works.", 1],
+  ["Nobody on our team can sign in since the update.", 2],
+];
+
+for (const [name, severity] of Object.entries(VARIANTS)) {
+  let correct = 0;
+  let tokens = 0;
+  for (const [text, level] of LABELED) {
+    const r = await client.systemOne({ state: text, questions: { severity } });
+    if (Math.round(r.answers.severity.score) === level) correct++;
+    tokens += r.usage.input_tokens;
+  }
+  console.log(`${name.padStart(14)}: ${correct}/${LABELED.length} correct, ${Math.round(tokens / LABELED.length)} input tokens per call`);
+}
+```
+
+Keep the examples only if they move accuracy enough to be worth their tokens. Look at which inputs flipped: if the fix came from one boundary case, that example is the one to keep.
+
 ---
 
 [← Noul](noul.md) · Next: [5. Confidence →](../05-confidence.md)

@@ -203,6 +203,25 @@ const result = await client.systemOne(
 | `apiConnectionError` | `true` |
 | `apiTimeoutError` | `true` |
 
+### Timeouts
+
+`timeout` (default `10000` ms) limits **each attempt**. Unlike the Python SDK, there's no total retry budget, so with the defaults a call can take up to 3 attempts × 10 s plus backoff. To cap the whole call, pass an `AbortSignal`; aborting also cancels pending retries:
+
+<!-- ts-check run:
+import { noul, TypeSafeClient } from "@typesafe-ai/sdk";
+const client = new TypeSafeClient();
+const state = "I was charged twice.";
+const questions = { billing: noul("Is this about billing?") };
+-->
+```ts
+// Interactive path: at most ~3 s end to end, however many retries that allows
+const result = await client.systemOne(
+  { state, questions },
+  { timeout: 2_000, retry: { maxRetries: 1 }, signal: AbortSignal.timeout(3_000) },
+);
+console.log(result.answers.billing.noul);
+```
+
 ## Raw HTTP response access (`APIPromise`)
 
 `systemOne()` returns an `APIPromise`, a `Promise` with extra methods:

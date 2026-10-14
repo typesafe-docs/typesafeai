@@ -643,6 +643,84 @@ const callArgs = Object.fromEntries(
 TOOLS[fnName](callArgs);
 ```
 
+### Free-text arguments and low-confidence calls
+
+The cookbook only asks about closed sets. Free text, numbers, and dates get no question, so the function's default stands. When an argument has no useful default, or a call is too uncertain to run, add a step in code:
+
+| Argument or situation | Approach |
+|---|---|
+| A value that appears in the request (a ticker, an amount, an email) | Find candidates with regex or a parser, then let a Choice **pick** one ([Pre-parsed value extraction](#pre-parsed-value-extraction)) |
+| A date | Extract its parts with Choices and assemble the date in code ([Date extraction](cookbooks/date_extraction_cookbook.md)) |
+| Truly free text (a note, a title, a search query) | Have a generative LLM write it; Jev still picks the function and the closed-set arguments |
+| The call's weakest judgment is uncertain | Don't run it: ask the user, or hand the whole request to an LLM with tool calling |
+
+The cookbook's call confidence is the **weakest** judgment in the call, not the product. The same rule in plain SDK code, with an LLM fallback:
+
+**Python**
+
+```python
+from collections.abc import Callable
+
+from typesafe_sdk import Choice, ChoiceAnswer, Noul, NoulAnswer, Question, TypeSafeClient
+
+client = TypeSafeClient()
+MIN_CONFIDENCE = 0.6  # starting point: tune it on labeled requests
+QUESTIONS: dict[str, Question] = {
+    "symbol": Choice(instructions="Which ticker does the request ask about?", criteria={s: None for s in ["SPY", "NVDA", "AMD", "AAPL"]}),
+    "window": Choice(instructions="Which time window does the request ask for?", criteria={"1w": "One week", "1mo": "One month", "3mo": "Three months"}),
+    "include_volume": Noul(instructions="Does the request ask to show trading volume?"),
+}
+
+
+def plan_call(request: str, llm_fallback: Callable[[str], dict]) -> dict:
+    answers = client.system_one(request, QUESTIONS).answers
+    confidence: dict[str, float] = {}
+    args: dict[str, object] = {}
+    for name, a in answers.items():
+        if isinstance(a, ChoiceAnswer):
+            args[name], confidence[name] = a.choice, a.confidence
+        elif isinstance(a, NoulAnswer):
+            args[name], confidence[name] = a.noul > 0.5, abs(2 * a.noul - 1)  # Noul confidence
+    weakest = min(confidence, key=confidence.__getitem__)
+    if confidence[weakest] < MIN_CONFIDENCE:
+        return {"via": "llm", "reason": f"unsure about {weakest}", "call": llm_fallback(request)}
+    return {"via": "jev", "confidence": confidence[weakest], "args": args}
+```
+
+**TypeScript**
+
+<!-- ts-check run:
+const llmFallback = async (request: string) => ({ tool: "plot_price", note: `LLM handled: ${request}` });
+-->
+```ts
+import { choice, noul, TypeSafeClient } from "@typesafe-ai/sdk";
+
+const client = new TypeSafeClient();
+const MIN_CONFIDENCE = 0.6; // starting point: tune it on labeled requests
+const QUESTIONS = {
+  symbol: choice("Which ticker does the request ask about?", { SPY: null, NVDA: null, AMD: null, AAPL: null }),
+  window: choice("Which time window does the request ask for?", { "1w": "One week", "1mo": "One month", "3mo": "Three months" }),
+  include_volume: noul("Does the request ask to show trading volume?"),
+};
+
+async function planCall(request: string, llmFallback: (request: string) => Promise<unknown>) {
+  const { answers } = await client.systemOne({ state: request, questions: QUESTIONS });
+  const args = { symbol: answers.symbol.choice, window: answers.window.choice, include_volume: answers.include_volume.noul > 0.5 };
+  const confidence = {
+    symbol: answers.symbol.confidence,
+    window: answers.window.confidence,
+    include_volume: Math.abs(2 * answers.include_volume.noul - 1), // Noul confidence
+  };
+  const [weakest, lowest] = Object.entries(confidence).reduce((min, e) => (e[1] < min[1] ? e : min));
+  if (lowest < MIN_CONFIDENCE) return { via: "llm", reason: `unsure about ${weakest}`, call: await llmFallback(request) };
+  return { via: "jev", confidence: lowest, args };
+}
+
+console.log(await planCall("show me apple with volume for the past month", llmFallback));
+```
+
+If an argument is optional and the request doesn't state it, uncertainty there is expected. The cookbook asks a separate `stated` Noul so an omitted argument keeps its default instead of dragging confidence down.
+
 ## Skill suggestion
 
 📖 **[Full recipe (all code + outputs)](cookbooks/skill_suggestion.md)** · Official: <https://docs.typesafe.ai/cookbooks/skill_suggestion>
@@ -1004,6 +1082,8 @@ Gives Jev memory across requests. After each call, a **Noul gate** asks whether 
 | | Running the two requests in order: route first, then gate |
 
 The gate counts only what the customer or support staff wrote in `request.ticket`. Anything that appears only in Jev's answer doesn't count, so an answer that relied on an earlier memory can't be saved again as a new fact. Memory only grows: there's no size limit, relevance filter, or expiry until you add one.
+
+### Wrapping `system_one` with a memory gate
 
 **Python**
 

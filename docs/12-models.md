@@ -78,7 +78,9 @@ Jev isn't fine-tuned or LoRA-adapted on customer data, and every account is serv
 
 ## Data handling
 
-Jev isn't trained on customer requests or responses. Enterprise customers can get zero data retention (ZDR). See <https://docs.typesafe.ai/legal>.
+Jev isn't trained on customer requests or responses. Enterprise customers can get zero data retention (ZDR) through sales@typesafe.ai. The terms are on the [Legal](https://docs.typesafe.ai/legal) page: a Data Processing Agreement (processing and retention), a Master Customer Agreement, and a Privacy Policy (including the no-training commitment). Hosting regions and data-residency options aren't published.
+
+Everything in `state`, `instructions`, and `criteria` is sent to the API. Keeping the state to what the question needs ([State](03-state.md#send-only-what-the-question-needs)) improves accuracy, lowers cost, and limits what leaves your system.
 
 ## Language support and calibrating thresholds
 

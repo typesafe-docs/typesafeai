@@ -136,6 +136,8 @@ Thresholds should **scale with the cost of being wrong**. [→ Confidence](05-co
 | Context | 64k per request; 32k for state plus the longest question |
 | Options | Choice ≤ 255; Score 2–10 levels |
 | Questions per request | No documented count limit; the token limits above apply |
+| Latency | About 100 ms for most requests; extra questions barely add to it |
+| SDK timeouts | 10 s per attempt, 2 retries; Python also caps the whole call at 30 s (`RetryPolicy.timeout`) |
 | Errors | 401 · 422 · 429 · 529 (the SDKs retry 408, 429, and 5xx) |
 
 [→ Models](12-models.md)

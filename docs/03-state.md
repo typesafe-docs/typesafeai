@@ -230,7 +230,104 @@ async function triage(ticket: Ticket, customer: Customer) {
 }
 ```
 
-Limits: 64k tokens per request (state plus all questions), and 32k tokens for the state plus the single longest question. See [Models](12-models.md).
+## Field order and size
+
+**Order.** Both SDKs send object keys in the order you build them (Python dicts and JavaScript objects keep insertion order; integer-like keys in JavaScript come first). The docs don't name state key order as a known failure mode; the documented ordering effect is [Choice option order](12-models.md#8-choice-option-order). Two habits still help:
+
+- Build the state in the **same order on every request**, so answers stay comparable across runs and thresholds you tune keep meaning the same thing.
+- Keep related fields together, and refer to them by name in backticks rather than by position ("the second field").
+
+To check whether order moves your answers, send the same state with its keys reversed:
+
+**Python**
+
+```python
+from typesafe_sdk import JSONValue, Noul, TypeSafeClient
+
+client = TypeSafeClient()
+QUESTIONS = {"refund_due": Noul(instructions="Does `refund_policy` cover the problem in `message`?")}
+state: dict[str, JSONValue] = {
+    "message": "I was charged twice for order A-104.",
+    "order": {"id": "A-104", "charges": [49, 49]},
+    "refund_policy": "Duplicate charges on the same order are refunded in full.",
+}
+
+forward = client.system_one(state, QUESTIONS).nouls["refund_due"].noul
+reverse = client.system_one(dict(reversed(state.items())), QUESTIONS).nouls["refund_due"].noul
+print(f"forward {forward:.2f}, reversed {reverse:.2f}, shift {abs(forward - reverse):.2f}")
+```
+
+**TypeScript**
+
+<!-- ts-check run -->
+```ts
+import { noul, TypeSafeClient } from "@typesafe-ai/sdk";
+
+const client = new TypeSafeClient();
+const QUESTIONS = { refund_due: noul("Does `refund_policy` cover the problem in `message`?") };
+const state = {
+  message: "I was charged twice for order A-104.",
+  order: { id: "A-104", charges: [49, 49] },
+  refund_policy: "Duplicate charges on the same order are refunded in full.",
+};
+
+const reversed = Object.fromEntries(Object.entries(state).reverse());
+const [forward, reverse] = await Promise.all(
+  [state, reversed].map(async (s) => (await client.systemOne({ state: s, questions: QUESTIONS })).answers.refund_due.noul),
+);
+console.log(`forward ${forward.toFixed(2)}, reversed ${reverse.toFixed(2)}, shift ${Math.abs(forward - reverse).toFixed(2)}`);
+```
+
+Run it over a handful of real examples. A shift that would cross your threshold means the question or criteria are too loose; tighten them rather than relying on order.
+
+**Size.** The limits are in tokens, not characters: **64k per request** (state plus all questions) and **32k for the state plus the single longest question** ([Models](12-models.md)). Stay well under them: even inside the limits, irrelevant material costs accuracy. For a document too long for one request, split it and ask the same question about each part, then combine the answers in code:
+
+**Python**
+
+```python
+from typesafe_sdk import Noul, TypeSafeClient
+
+client = TypeSafeClient()
+QUESTION = {"mentions_refund": Noul(instructions="Does `text` mention a refund?")}
+
+
+def chunks(text: str, size: int = 20_000, overlap: int = 500) -> list[str]:
+    return [text[i : i + size] for i in range(0, max(len(text) - overlap, 1), size - overlap)]
+
+
+def any_part_mentions_refund(document: str) -> float:
+    answers = [client.system_one({"text": part}, QUESTION).nouls["mentions_refund"].noul for part in chunks(document)]
+    return max(answers)  # "anywhere in the document" = the strongest part
+```
+
+**TypeScript**
+
+<!-- ts-check run:
+const document = "Order A-104 was charged twice. ".repeat(1000) + "Please refund the duplicate.";
+-->
+```ts
+import { noul, TypeSafeClient } from "@typesafe-ai/sdk";
+
+const client = new TypeSafeClient();
+const QUESTION = { mentions_refund: noul("Does `text` mention a refund?") };
+
+function chunks(text: string, size = 20_000, overlap = 500): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < Math.max(text.length - overlap, 1); i += size - overlap) out.push(text.slice(i, i + size));
+  return out;
+}
+
+async function anyPartMentionsRefund(document: string): Promise<number> {
+  const answers = await Promise.all(
+    chunks(document).map(async (text) => (await client.systemOne({ state: { text }, questions: QUESTION })).answers.mentions_refund.noul),
+  );
+  return Math.max(...answers); // "anywhere in the document" = the strongest part
+}
+
+console.log(await anyPartMentionsRefund(document));
+```
+
+Chunk size is in characters here; check `usage.input_tokens` on a sample to pick one that fits ([counting tokens](15-faq.md#how-do-i-count-tokens-before-sending-a-request)). To find *where* in a document something is, rather than whether, see [Semantic find](cookbooks/semantic_find.md).
 
 ---
 

@@ -21,6 +21,9 @@ def fetch_sources() -> None:
     import subprocess
     from concurrent.futures import ThreadPoolExecutor
 
+    import shutil
+
+    shutil.rmtree(f"{SCR}/md", ignore_errors=True)  # drop pages the index no longer lists
     os.makedirs(f"{SCR}/md", exist_ok=True)
     index = subprocess.run(["curl", "-sfL", "https://docs.typesafe.ai/llms.txt"], capture_output=True, text=True, check=True).stdout
     urls = sorted(set(re.findall(r"https://docs\.typesafe\.ai/[^)\s]+\.md", index)))
@@ -52,22 +55,31 @@ CORE = {
     "/primitives/score": "docs/04-primitives/score.md",
     "/primitives/noul": "docs/04-primitives/noul.md",
     "/primitives/advanced": "docs/04-primitives/advanced-structure.md",
+    "/primitives/box": "docs/04-primitives/box.md",
+    "/images": "docs/04-primitives/images.md",
     "/confidence": "docs/05-confidence.md",
     "/concepts/how-to-build-with-system-one": "docs/06-building-with-typesafe.md",
     "/patterns": "docs/07-patterns.md",
     "/patterns/fan-out": "docs/07-patterns.md#speculative-fan-out",
-    "/patterns/confidence-routing": "docs/07-patterns.md#confidence-gated-routing",
+    "/patterns/confidence-routing": "docs/07-patterns.md#routing-by-confidence",
+    "/patterns/probability-routing": "docs/07-patterns.md#routing-by-probability",
+    "/patterns/companion-noul": "docs/07-patterns.md#companion-noul",
+    "/patterns/noul-screen": "docs/07-patterns.md#screen-with-a-noul-first",
     "/patterns/composite-scoring": "docs/07-patterns.md#composite-scoring",
     "/patterns/intent-routing": "docs/07-patterns.md#intent-routing",
     "/cookbooks": "docs/08-cookbooks.md",
-    "/demos": "docs/08-cookbooks.md#demo-smart-home-assistant",
+    "/demos": "docs/08-cookbooks.md#made-with-jev",
+    "/demos/airbnb-listing-search": "docs/08-cookbooks.md#demo-airbnb-listing-search",
+    "/demos/content-audit": "docs/08-cookbooks.md#demo-content-audit",
     "/demos/smart-home": "docs/08-cookbooks.md#demo-smart-home-assistant",
     "/api": "docs/09-api-reference.md",
     "/sdk": "docs/10-sdk-python.md",
     "/sdk/python": "docs/10-sdk-python.md",
     "/sdk/javascript": "docs/11-sdk-javascript.md",
     "/models": "docs/12-models.md",
-    "/model-jaggedness/jev-1.13": "docs/12-models.md#known-failure-modes-jev-113",
+    "/model-jaggedness": "docs/12-models.md#known-failure-modes",
+    "/model-jaggedness/jev-1.13": "docs/12-models.md#known-failure-modes",
+    "/changelog": "docs/12-models.md#model-changelog",
     "/agent-skill": "docs/13-agent-skill.md",
 }
 convert.LINKMAP.update(CORE)
@@ -77,7 +89,9 @@ for c in COOKBOOKS:
     convert.LINKMAP[f"/cookbooks/{c}"] = f"docs/cookbooks/{c}.md"
 
 PY = {
-    "sdk_python_usage": ("usage.md", "/sdk/python/usage"),
+    "sdk_python_usage_basic": ("usage-basic.md", "/sdk/python/usage/basic"),
+    "sdk_python_usage_advanced": ("usage-advanced.md", "/sdk/python/usage/advanced"),
+    "sdk_python_api_types_assets": ("assets.md", "/sdk/python/api/types/assets"),
     "sdk_python_api_clients_sync": ("sync-client.md", "/sdk/python/api/clients/sync"),
     "sdk_python_api_clients_async": ("async-client.md", "/sdk/python/api/clients/async"),
     "sdk_python_api_types_questions": ("questions.md", "/sdk/python/api/types/questions"),
@@ -204,10 +218,16 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 def dl(item):
     dp, url = item
-    dest = os.path.join(REPO, "docs/assets", dp)
-    if os.path.exists(dest): return
+    dest = os.path.join(REPO, "docs/assets", dp)  # always refetch: re-run cookbooks change their plots
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     import subprocess
     subprocess.run(["curl","-sfL","-A","Mozilla/5.0","-o",dest,url],check=False)
 with ThreadPoolExecutor(8) as p: list(p.map(dl, convert.IMAGES.items()))
 print("images", len(convert.IMAGES))
+
+# Remove cookbook images that no page links to anymore.
+for root, _, files in os.walk(os.path.join(REPO, "docs/assets/cookbooks")):
+    for name in files:
+        rel = os.path.relpath(os.path.join(root, name), os.path.join(REPO, "docs/assets"))
+        if rel not in convert.IMAGES:
+            os.remove(os.path.join(root, name))

@@ -316,7 +316,23 @@ def convert(src: str, here: str, source_url: str) -> str:
     text = cleanup_html(text)
     text = text.replace("&#x22;", '"')
     text = re.sub(r"\n{3,}", "\n\n", text)
+    text = localize_cdn_images(text, here)
+    text = text.replace("](#run-it)", f"]({source_url}#run-it)")  # the playground widget exists only on the official page
     return relink(text, here)
+
+
+CDN_IMAGE = re.compile(r"!\[([^\]]*)\]\((https://mintcdn\.com/[^/\s]+/[^/\s]+/([^?)\s]+)[^)\s]*)\)")
+
+
+def localize_cdn_images(text: str, here: str) -> str:
+    """Point Markdown images on the docs CDN at local copies under docs/assets/ (downloaded later)."""
+
+    def repl(m: re.Match) -> str:
+        alt, url, path = m.group(1), m.group(2).replace("\\&", "&"), m.group(3)
+        IMAGES[path] = url
+        return f"![{alt}]({os.path.relpath(os.path.join('docs/assets', path), os.path.dirname(here))})"
+
+    return CDN_IMAGE.sub(repl, text)
 
 
 def _strip_tags(x: str) -> str:

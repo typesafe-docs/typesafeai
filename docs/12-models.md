@@ -1,16 +1,102 @@
 # 12. Models, limits & jaggedness
 
-[← Back to README](../README.md) · Sources: <https://docs.typesafe.ai/models> · <https://docs.typesafe.ai/model-jaggedness/jev-1.13>
+[← Back to README](../README.md) · Sources: <https://docs.typesafe.ai/models> · <https://docs.typesafe.ai/changelog> · <https://docs.typesafe.ai/model-jaggedness>
 
-## Current model: Jev 1.13 (`jev-1.13.0`)
+## Current models
 
-| | |
-|---|---|
-| **Price** | $42 per billion tokens ($0.042 per million). **Charged on input tokens only; output tokens are free.** |
-| **Rate limits** | 100K tokens/second and 80 requests/second. Adjusted dynamically and may change without notice; higher limits on custom and enterprise plans (sales@typesafe.ai). Both SDKs retry `429` and honor `retry-after`. |
-| **Context** | 64k tokens per request; 32k tokens for `state` plus the single longest question |
-| **Input** | Text only: a string, JSON object, or array of text |
-| **Questions per request** | No documented count limit; the token limits above apply |
+Every model is served by the same endpoint, `POST /v1/systemone`; the request's `model` field picks one.
+
+| | Jev 1.14 | Jev 1.13 |
+|---|---|---|
+| **Model ID** | `jev-1.14.0` (released 2026-10-14) | `jev-1.13.0` |
+| **Price** | $42 per billion input tokens ($0.042 per million). **Output tokens are free.** | Same |
+| **Context** | 64k per request; 32k per question | Same |
+| **Input** | Text (string, JSON object, or array), plus PNG and JPEG [images](04-primitives/images.md) | Same |
+| **Question types** | Choice, Score, Noul, [Box](04-primitives/box.md) | Choice, Score, Noul |
+
+No audio or video input yet.
+
+### Context length
+
+Jev reads the `state` once and evaluates every question against it in parallel. A request has to fit **two** limits:
+
+| Limit | Counts | Default |
+|---|---|---|
+| Per-request context | `state` plus **all** questions | 64k tokens |
+| Per-question context | `state` plus **any one** question | 32k tokens |
+
+There's no separate limit on the number of questions: any number fits as long as both limits hold.
+
+### Long context
+
+Send the `TypeSafe-Danger-Zone-Long-Context: true` header to raise **both** limits to **262k tokens** for that request. It works on Jev 1.14 and 1.13 and costs the same per token, but it's slower and less accurate than staying inside the default limits, so turn it on only for requests that need it.
+
+```bash
+curl https://api.typesafe.ai/v1/systemone \
+  -H "Authorization: Bearer $TYPESAFE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "TypeSafe-Danger-Zone-Long-Context: true" \
+  -d '{
+    "model": "jev-latest",
+    "state": "<a long contract, transcript, or record>",
+    "questions": {
+      "has_termination_clause": {
+        "type": "noul",
+        "instructions": "Does the `state` include a clause that lets either party end the agreement early?"
+      }
+    }
+  }'
+```
+
+**Python**
+
+```python
+from typesafe_sdk import Noul, TypeSafeClient
+
+LONG_CONTEXT = {"TypeSafe-Danger-Zone-Long-Context": "true"}
+
+client = TypeSafeClient()
+contract = "<a long contract, transcript, or record>"
+response = client.system_one(
+    contract,
+    {"has_termination_clause": Noul(instructions="Does the `state` include a clause that lets either party end the agreement early?")},
+    extra_headers=LONG_CONTEXT,  # only on the requests that need it
+)
+print(response.nouls["has_termination_clause"].noul)
+```
+
+**TypeScript**
+
+<!-- ts-check run -->
+```ts
+import { noul, TypeSafeClient } from "@typesafe-ai/sdk";
+
+const LONG_CONTEXT = { "TypeSafe-Danger-Zone-Long-Context": "true" };
+
+const client = new TypeSafeClient();
+const contract = "<a long contract, transcript, or record>";
+const { answers } = await client.systemOne(
+  {
+    state: contract,
+    questions: { has_termination_clause: noul("Does the `state` include a clause that lets either party end the agreement early?") },
+  },
+  { headers: LONG_CONTEXT }, // only on the requests that need it
+);
+console.log(answers.has_termination_clause.noul);
+```
+
+### Rate limits
+
+Rate limits are set **per organization**, in tokens per second and requests per second. Your current limits are on the console's [rate limits page](https://console.typesafe.ai/rate-limits). A request over either limit gets `429 Too Many Requests`; both SDKs retry it with backoff and honor `retry-after`. Higher limits come with custom and enterprise plans: use the [rate limit increase request form](https://support.typesafe.ai/forms/rate-limit-increase-request).
+
+### Model changelog
+
+**Jev 1.14** (`jev-1.14.0`, 2026-10-14):
+
+- Better multilingual support.
+- New [Box](04-primitives/box.md) question type: finds where something is in an image and answers with a bounding box. Box needs Jev 1.14.
+- [Images](04-primitives/images.md) can go in `state`, `instructions`, or `criteria`. This also works on Jev 1.13.
+- [Long context](#long-context) raises both context limits to 262k tokens per request. This also works on Jev 1.13.
 
 ### Rough cost math
 
@@ -33,7 +119,7 @@ import type { Usage } from "@typesafe-ai/sdk";
 ```ts
 const PRICE_PER_INPUT_TOKEN = 0.042 / 1_000_000; // USD; output tokens are free
 
-const costUsd = (result: { usage: Usage }) => result.usage.input_tokens * PRICE_PER_INPUT_TOKEN;
+const costUsd = (result: { usage: Usage }) => (result.usage.input_tokens ?? 0) * PRICE_PER_INPUT_TOKEN; // counts can be null
 
 // e.g. 400 input tokens per call x 1M calls ≈ $16.80
 ```
@@ -42,15 +128,15 @@ const costUsd = (result: { usage: Usage }) => result.usage.input_tokens * PRICE_
 
 | Alias | Points to | Meaning |
 |---|---|---|
-| `jev-latest` | `jev-1.13.0` | Latest stable release. This is the SDK default. |
-| `jev-preview` | `jev-1.13.0` | Latest release of any kind, including previews. There's no preview build right now. |
+| `jev-latest` | `jev-1.14.0` | Latest stable release. This is the SDK default. |
+| `jev-preview` | `jev-1.14.0` | Latest release of any kind, including previews. There's no preview build right now, so it matches `jev-latest`. |
 
 Aliases move when a new version ships. The response's `model` field always reports the **versioned ID** that answered, so log it. If you've tuned thresholds against a specific version, **pin it**:
 
 **Python**
 
 ```python
-client = TypeSafeClient(model="jev-1.13.0")
+client = TypeSafeClient(model="jev-1.14.0")
 response = client.system_one(state, questions)
 log.info("answered_by=%s", response.model)
 ```
@@ -63,7 +149,7 @@ const state = "I was charged twice.";
 const questions = { billing: noul("Is this about billing?") };
 -->
 ```ts
-const client = new TypeSafeClient({ defaultModel: "jev-1.13.0" });
+const client = new TypeSafeClient({ defaultModel: "jev-1.14.0" });
 const result = await client.systemOne({ state, questions });
 console.info(`answered_by=${result.model}`);
 ```
@@ -78,13 +164,13 @@ Jev isn't fine-tuned or LoRA-adapted on customer data, and every account is serv
 
 ## Data handling
 
-Jev isn't trained on customer requests or responses. Enterprise customers can get zero data retention (ZDR) through sales@typesafe.ai. The terms are on the [Legal](https://docs.typesafe.ai/legal) page: a Data Processing Agreement (processing and retention), a Master Customer Agreement, and a Privacy Policy (including the no-training commitment). Hosting regions and data-residency options aren't published.
+Jev isn't trained on customer requests or responses. Enterprise customers can get zero data retention (ZDR); ask through the [support request form](https://support.typesafe.ai/forms/support-request). The terms are on the [Legal](https://docs.typesafe.ai/legal) page: a Data Processing Agreement (processing and retention), a Master Customer Agreement, and a Privacy Policy (including the no-training commitment). Hosting regions and data-residency options aren't published.
 
 Everything in `state`, `instructions`, and `criteria` is sent to the API. Keeping the state to what the question needs ([State](03-state.md#send-only-what-the-question-needs)) improves accuracy, lowers cost, and limits what leaves your system.
 
 ## Language support and calibrating thresholds
 
-English is the primary language and gives the best accuracy. Other languages, including CJK scripts, work less well. A confidence threshold you tuned on English data doesn't carry over to another language, or to another question or model version. Before you trust one, measure accuracy above the threshold on a small labeled sample of each language you serve:
+Jev 1.14 improved multilingual support over 1.13, but accuracy still varies by language, and the docs publish no per-language numbers. A confidence threshold you tuned on one language doesn't carry over to another language, or to another question or model version. Before you trust one, measure accuracy above the threshold on a small labeled sample of each language you serve:
 
 **Python**
 
@@ -93,7 +179,7 @@ from collections import defaultdict
 
 from typesafe_sdk import Choice, TypeSafeClient
 
-client = TypeSafeClient(model="jev-1.13.0")  # pin the version you calibrate against
+client = TypeSafeClient(model="jev-1.14.0")  # pin the version you calibrate against
 QUESTION = Choice(
     instructions="Which team should handle `message`?",
     criteria={"billing": "Payments, invoices, refunds", "technical": "Bugs, crashes, outages"},
@@ -123,7 +209,7 @@ for lang, (answered, correct) in stats.items():
 ```ts
 import { choice, TypeSafeClient } from "@typesafe-ai/sdk";
 
-const client = new TypeSafeClient({ defaultModel: "jev-1.13.0" }); // pin the version you calibrate against
+const client = new TypeSafeClient({ defaultModel: "jev-1.14.0" }); // pin the version you calibrate against
 const question = choice("Which team should handle `message`?", {
   billing: "Payments, invoices, refunds",
   technical: "Bugs, crashes, outages",
@@ -154,9 +240,9 @@ If a language falls short, raise its threshold, route it to a fallback, or trans
 
 ---
 
-## Known failure modes (Jev 1.13)
+## Known failure modes
 
-*Last reviewed 2026-10-02.* Jev 1.13 is fast, calibrated, and good at common-sense judgment. It does worse on tasks that need indirection, it reads literally, and it struggles with numeric precision.
+The official list isn't tied to a version; it describes Jev in general. Jev is fast, calibrated, and good at common-sense judgment. It does worse on tasks that need indirection, it reads literally, and it struggles with numeric precision.
 
 | # | Failure mode | Do this instead |
 |---|---|---|
@@ -206,7 +292,7 @@ Don't use Jev as a calculator or a counter. Iterate in code instead:
 ```python
 from typesafe_sdk import Noul, TypeSafeClient
 
-client = TypeSafeClient(model="jev-1.13")
+client = TypeSafeClient(model="jev-latest")
 YES = 0.5
 
 items = ["typesafe", "apple", "california", "banana", "likes", "calibration", "orange", "vertex"]
@@ -225,7 +311,7 @@ count = sum(result.nouls[f"item_{i}"].noul > YES for i in range(len(items)))
 ```ts
 import { noul, TypeSafeClient } from "@typesafe-ai/sdk";
 
-const client = new TypeSafeClient({ defaultModel: "jev-1.13" });
+const client = new TypeSafeClient({ defaultModel: "jev-latest" });
 const YES = 0.5;
 
 const items = ["typesafe", "apple", "california", "banana", "likes", "calibration", "orange", "vertex"];
@@ -351,7 +437,7 @@ noul("Does the message contain PII?", { true: "Contains PII", false: "No PII" })
 
 ### 8. Choice option order
 
-Jev 1.13 can lean toward the **first** option. Spot-check it:
+Jev can lean toward the **first** option. Spot-check it:
 
 **Python**
 
@@ -403,7 +489,7 @@ Jev isn't trained to generate text. For extraction, find candidates with regex o
 
 > **Avoid:** asking Jev for anything code can compute exactly, hiding several judgments in one question, System Two tasks with many layers of indirection, and padding the state with more context than the question needs.
 
-Found a new failure mode? Report it on [Discord](https://discord.com/invite/WUujKYBp8s).
+Found a new failure mode? Report it on [Discord](https://discord.gg/typesafe).
 
 ---
 

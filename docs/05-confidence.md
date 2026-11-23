@@ -7,7 +7,7 @@ Every Choice and Score answer includes `probabilities`, the distribution over yo
 - **1:** all the probability is on one outcome.
 - **0:** the probability is spread evenly.
 
-Noul answers have no `confidence` field, because the `noul` value already carries the uncertainty.
+Noul answers have no `confidence` field, because the `noul` value already carries the uncertainty. [Box](04-primitives/box.md) answers have a `confidence` (0 to 1, possibly `null`) but no `probabilities`, and no published formula.
 
 > "If an intelligent system, whether human or machine, cannot express honest uncertainty, the system cannot be trusted."
 
@@ -103,6 +103,67 @@ if (confidence < 0.5) {
 ```
 
 > Start with conservative thresholds, test on your own data, and adjust. You can calibrate by plotting confidence against accuracy.
+
+## When to act on confidence
+
+Confidence measures how **concentrated** the probabilities are, which isn't the probability that the selected answer is correct. For a Choice it's a transformation of the top probability, so checking both adds nothing, and the same confidence means different things with different numbers of options:
+
+| Options | Top probability | `confidence` |
+|---|---|---|
+| 2 | 0.75 | 0.5 |
+| 3 | 0.67 | 0.5 |
+| 10 | 0.55 | 0.5 |
+
+What to put the threshold on instead:
+
+- **Noul:** the value itself. Start at 0.7 for yes and 0.3 for no, and give the band between them its own outcome.
+- **Choice:** the probability of the option your code will act on. `probabilities["approve_transfer"] > 0.9` reads as "act when the chance of the wrong option is under 10%". See [Routing by probability](07-patterns.md#routing-by-probability).
+- **Score, when the decision depends on one level:** that level's probability (or the sum on one side of a boundary). A split between neighboring levels barely lowers confidence, so confidence won't show it.
+
+Check `confidence` first when you need to know whether a **Score** answer is settled at all: it catches probability spread across distant levels that the position alone hides. See [Routing by confidence](07-patterns.md#routing-by-confidence). Confidence is also handy for comparing uncertainty across questions, since it's on the same 0-to-1 scale.
+
+**Python**
+
+```python
+from typesafe_sdk import Choice, Noul, TypeSafeClient
+
+client = TypeSafeClient()
+r = client.system_one(
+    {"message": "Yes, go ahead with the pending transfer."},
+    {
+        "action": Choice(instructions="What is the user asking for in `message`?", criteria={"check_balance": None, "approve_transfer": None, "support": None}),
+        "urgent": Noul(instructions="Does `message` convey urgency?"),
+    },
+)
+action = r.choices["action"]
+if action.choice == "approve_transfer" and action.probabilities["approve_transfer"] > 0.9:
+    print("start the confirmation flow")  # threshold on the acted-on option's probability
+urgent = r.nouls["urgent"].noul
+print("urgent" if urgent > 0.7 else "not urgent" if urgent < 0.3 else "unsure: its own path")
+```
+
+**TypeScript**
+
+<!-- ts-check run -->
+```ts
+import { choice, noul, TypeSafeClient } from "@typesafe-ai/sdk";
+
+const client = new TypeSafeClient();
+const { answers } = await client.systemOne({
+  state: { message: "Yes, go ahead with the pending transfer." },
+  questions: {
+    action: choice("What is the user asking for in `message`?", { check_balance: null, approve_transfer: null, support: null }),
+    urgent: noul("Does `message` convey urgency?"),
+  },
+});
+if (answers.action.choice === "approve_transfer" && answers.action.probabilities.approve_transfer > 0.9) {
+  console.log("start the confirmation flow"); // threshold on the acted-on option's probability
+}
+const urgent = answers.urgent.noul;
+console.log(urgent > 0.7 ? "urgent" : urgent < 0.3 ? "not urgent" : "unsure: its own path");
+```
+
+TypeSafe's `confidence` is one reasonable summary of a distribution, not the only one. Every answer includes its full `probabilities`, so you can compute whichever measure your application needs.
 
 ## How confidence is calculated
 
@@ -238,7 +299,7 @@ Low confidence is information about your question or your state, not noise. Look
 | What `probabilities` looks like | Likely cause | Fix |
 |---|---|---|
 | Two options share most of the mass | The options overlap | Sharpen both descriptions so their boundary is explicit |
-| Mass spread over every option | None of them fits, or the state lacks the evidence | Add an `other` / `none` option; put the evidence in `state` and name it in the question |
+| Mass spread over every option | None of them fits, or the state lacks the evidence | Add a [companion Noul](07-patterns.md#companion-noul) that asks whether any option fits; put the evidence in `state` and name it in the question |
 | Score mass on both ends | The question measures two things at once | Split it into two questions |
 | Score mass on two neighboring levels | The levels are vague | Give each level a structured description with examples |
 | Noul near 0.5 | Ambiguous or degree-type question | Tighten the yes/no boundary, or use a Score |
@@ -246,7 +307,7 @@ Low confidence is information about your question or your state, not noise. Look
 **Python**
 
 ```python
-from typesafe_sdk import Choice, TypeSafeClient
+from typesafe_sdk import Choice, Noul, TypeSafeClient
 
 client = TypeSafeClient()
 
@@ -255,12 +316,9 @@ response = client.system_one(
     questions={
         "team": Choice(
             instructions="Which team should handle `message`?",
-            criteria={
-                "billing": "Payments, invoices, refunds",
-                "technical": "Bugs, crashes, outages",
-                "other": "Anything that fits neither team",
-            },
+            criteria={"billing": "Payments, invoices, refunds", "technical": "Bugs, crashes, outages"},
         ),
+        "any_team_fits": Noul(instructions="Does `message` belong to either the billing team or the technical team?"),
     },
 )
 
@@ -268,11 +326,11 @@ answer = response.choices["team"]
 ranked = sorted(answer.probabilities.items(), key=lambda kv: kv[1], reverse=True)
 (top, p1), (runner_up, p2) = ranked[0], ranked[1]
 
-if answer.confidence < 0.5:
+if response.nouls["any_team_fits"].noul < 0.3:
+    print("No option fits: add the missing option")  # the companion Noul, not the Choice, says so
+elif p1 < 0.7:
     if p1 + p2 > 0.9:
         print(f"Torn between {top!r} and {runner_up!r}: make their boundary explicit in criteria")
-    elif top == "other":
-        print("No option fits: add the missing option")
     else:
         print("Mass is spread out: check that the state contains the evidence the question needs")
 ```
@@ -281,7 +339,7 @@ if answer.confidence < 0.5:
 
 <!-- ts-check run -->
 ```ts
-import { choice, TypeSafeClient } from "@typesafe-ai/sdk";
+import { choice, noul, TypeSafeClient } from "@typesafe-ai/sdk";
 
 const client = new TypeSafeClient();
 
@@ -291,17 +349,16 @@ const { answers } = await client.systemOne({
     team: choice("Which team should handle `message`?", {
       billing: "Payments, invoices, refunds",
       technical: "Bugs, crashes, outages",
-      other: "Anything that fits neither team",
     }),
+    any_team_fits: noul("Does `message` belong to either the billing team or the technical team?"),
   },
 });
 
-const answer = answers.team;
-const [[top, p1], [runnerUp, p2]] = Object.entries(answer.probabilities).sort((a, b) => b[1] - a[1]);
+const [[top, p1], [runnerUp, p2]] = Object.entries(answers.team.probabilities).sort((a, b) => b[1] - a[1]);
 
-if (answer.confidence < 0.5) {
+if (answers.any_team_fits.noul < 0.3) console.log("No option fits: add the missing option"); // the companion Noul says so
+else if (p1 < 0.7) {
   if (p1 + p2 > 0.9) console.log(`Torn between "${top}" and "${runnerUp}": make their boundary explicit in criteria`);
-  else if (top === "other") console.log("No option fits: add the missing option");
   else console.log("Mass is spread out: check that the state contains the evidence the question needs");
 }
 ```
@@ -310,7 +367,7 @@ if (answer.confidence < 0.5) {
 
 - **It measures how concentrated the distribution is,** not whether the answer is correct. A confidently wrong answer is possible, typically when the question is written ambiguously or the state is adversarial.
 - **Thresholds don't transfer.** A threshold tuned on one question, model version, or language doesn't carry over to another. Calibrate per question on labeled examples, and pin the model version you tuned against ([Models → Aliases](12-models.md#aliases)).
-- **English gives the best calibration.** For other languages, measure accuracy against confidence on your own data before trusting a threshold ([Models → Language support](12-models.md#language-support-and-calibrating-thresholds)).
+- **Calibration varies by language.** Measure accuracy against confidence on your own data for each language before trusting a threshold ([Models → Language support](12-models.md#language-support-and-calibrating-thresholds)).
 - **It isn't authorization.** A confident "approve_transfer" is a reading of the text, not permission. Keep permission checks in code.
 
 ## When *not* to use confidence thresholds

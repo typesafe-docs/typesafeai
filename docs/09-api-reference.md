@@ -16,6 +16,15 @@ Authorization: Bearer <API_KEY>
 Content-Type: application/json
 ```
 
+Requests with images may instead be `multipart/form-data`: a JSON part named `request` first, then one part per image ([Images](04-primitives/images.md#over-http-without-an-sdk)).
+
+Optional headers that turn on preview features, per request:
+
+| Header | Effect |
+|---|---|
+| `TypeSafe-Danger-Zone-Images: true` | Allows `assets` and `box` questions. Without it, a request that uses them fails with `400`. |
+| `TypeSafe-Danger-Zone-Long-Context: true` | Raises both context limits to 262k tokens. Same price per token, but slower and less accurate ([Long context](12-models.md#long-context)). |
+
 ---
 
 ## `POST /v1/systemone`
@@ -27,6 +36,7 @@ Content-Type: application/json
 | `state` | `string \| object \| array` | The content to evaluate. See [State](03-state.md). |
 | `model` | `string` | For example `"jev-latest"`. See [Models](12-models.md). |
 | `questions` | `map<string, Question>` | Question IDs you choose, mapped to question objects. Answers come back under the same keys. **Keys aren't sent to the model.** |
+| `assets` | `map<string, Asset>` *(optional)* | Images, keyed by a reference string you write anywhere in `state`, `instructions`, or `criteria`. Each asset is `{"type": "image", "format": "png" \| "jpg" \| "jpeg", "data_base64": "..."}`, or `{"type": "image", "part": "<multipart part name>"}`. Needs the images header. See [Images](04-primitives/images.md). |
 
 ```json
 {
@@ -40,7 +50,7 @@ Content-Type: application/json
 
 ### Question types
 
-Every question has `type` and `instructions` (`string | object | array`). Each type adds its own `criteria`.
+Every question has a `type`: `noul`, `choice`, `score`, or `box`. `instructions` is a `string | object | array` (the OpenAPI spec makes it optional, but write one). Choice and Score require `criteria`.
 
 #### Noul
 
@@ -87,7 +97,7 @@ Every question has `type` and `instructions` (`string | object | array`). Each t
 |---|---|---|
 | `type` | `"score"` | |
 | `instructions` | `string \| object \| array` | |
-| `criteria` | `array<string \| object \| array>` | Ordered level descriptions, low to high. **At least 2, at most 10.** |
+| `criteria` | `array<string \| object \| array>` | Ordered level descriptions, low to high. **At most 10.** The API and the Python SDK accept 1, but the JS SDK requires at least 2, and a scale needs two ends. |
 
 ```json
 "frustration": {
@@ -96,6 +106,15 @@ Every question has `type` and `instructions` (`string | object | array`). Each t
   "criteria": ["Calm", "Frustrated", "Very angry"]
 }
 ```
+
+#### Box
+
+| Field | Type | Notes |
+|---|---|---|
+| `type` | `"box"` | Needs Jev 1.14 and the images header |
+| `instructions` | `string \| object \| array` | What to find, for example `"the coffee mug in `photo`"`. No `criteria`. |
+
+See [Box](04-primitives/box.md).
 
 #### Structured `instructions`
 
@@ -116,9 +135,9 @@ Put the question in one field and the data it refers to in others. Refer to the 
 
 | Field | Type | Description |
 |---|---|---|
-| `model` | `string` | The **versioned** model that answered, for example `jev-1.13.0` |
+| `model` | `string` | The **versioned** model that answered, for example `jev-1.14.0` |
 | `answers` | `map<string, Answer>` | One answer per question ID |
-| `usage` | `{ input_tokens: int \| null, output_tokens: int \| null }` | Token usage, when reported. The Python SDK types both counts as `int \| None`, so handle a missing count. |
+| `usage` | `{ input_tokens: int, output_tokens: int }` | Token usage. Both SDKs type the counts as nullable (Python `int \| None`, JavaScript `number \| null` since v0.7.0), so handle a missing count. |
 
 ### Answer types
 
@@ -168,6 +187,21 @@ Put the question in one field and the data it refers to in others. Refer to the 
 | `probabilities` | `map<string, number>` | Level number (string key) → probability |
 | `confidence` | `number` | See [Confidence](05-confidence.md#score) |
 
+#### Box answer
+
+```json
+{
+  "type": "box",
+  "box": { "top": 0.25, "bottom": 0.82, "left": 0.44, "right": 0.84 },
+  "confidence": 0.92
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `box` | `object` | `top` and `bottom` are fractions of the image height from the top; `left` and `right` are fractions of the width from the left. Each is 0 to 1. |
+| `confidence` | `number \| null` | 0 to 1. There are no `probabilities`. |
+
 ---
 
 ## `GET /v1/models`
@@ -177,7 +211,7 @@ curl https://api.typesafe.ai/v1/models \
   -H "Authorization: Bearer $TYPESAFE_API_KEY"
 ```
 
-Returns `{ "models": [ { "name", "description", "release_date" }, ... ] }`. It currently lists the aliases. Versioned IDs such as `jev-1.13.0` are accepted in `model` whether or not they're listed.
+Returns `{ "models": [ { "name", "description", "release_date" }, ... ] }`. It currently lists the aliases. Versioned IDs such as `jev-1.14.0` and `jev-1.13.0` are accepted in `model` whether or not they're listed.
 
 ### Health check: list models, then confirm which version answers
 
@@ -200,7 +234,7 @@ def health_check() -> dict[str, object]:
         return {"ok": False, "status": err.status}
     except TypeSafeError as err:  # never reached it: network error or timeout
         return {"ok": False, "error": type(err).__name__}
-    return {"ok": True, "models": names, "answered_by": probe.model}  # e.g. "jev-1.13.0"
+    return {"ok": True, "models": names, "answered_by": probe.model}  # e.g. "jev-1.14.0"
 ```
 
 **TypeScript**
@@ -216,7 +250,7 @@ async function healthCheck() {
   try {
     const models = await client.models.list(FAIL_FAST); // ModelCard[]: name, description, release_date
     const probe = await client.systemOne({ state: "ping", questions: { ok: noul("Is this text non-empty?") } }, FAIL_FAST);
-    return { ok: true, models: models.map((m) => m.name), answeredBy: probe.model }; // e.g. "jev-1.13.0"
+    return { ok: true, models: models.map((m) => m.name), answeredBy: probe.model }; // e.g. "jev-1.14.0"
   } catch (err) {
     if (err instanceof APIError) return { ok: false, status: err.status }; // 401, 429, 529, ...
     if (err instanceof TypeSafeError) return { ok: false, error: err.name }; // network error or timeout
@@ -235,12 +269,27 @@ The System One probe is billed like any request, but a one-word state costs a ha
 
 | Status | Meaning |
 |---|---|
+| `400 Bad Request` | The request breaks a request rule (below), a compressed body is malformed, images aren't turned on, an image is rejected, or `max_tokens_exceeded` (over the context limits) |
 | `401 Unauthorized` | Missing or invalid API key |
 | `422 Unprocessable Entity` | Validation failed, for example a missing field or a malformed question. The body names the offending field. |
 | `429 Too Many Requests` | Rate limit exceeded. Back off and retry. |
+| `413 Payload Too Large` | Body over 32 MiB, or an image-request size limit: image file, dimensions, all images together, the expanded request, or reference lengths |
+| `415 Unsupported Media Type` | Unsupported `Content-Encoding`, or more than one compression layer |
 | `529 Overloaded` | Temporarily overloaded. Retry after a short delay. |
 
-Both SDKs also retry `408` and `5xx` by default. Responses carry an `x-typesafe-request-id` header, which is worth logging.
+Both SDKs also retry `408` and `5xx` by default. Responses carry an `x-typesafe-request-id` header, which is worth logging. A `400` body is `{"detail": string | object}`; a `422` body is `{"detail": [{"loc", "msg", "type", ...}]}`. For image requests with several problems, only one is reported ([Images](04-primitives/images.md#errors)).
+
+### Request rules
+
+| Rule | Limit |
+|---|---|
+| Body size | 32 MiB (headers don't count) |
+| Encoding | UTF-8 JSON, no byte-order mark |
+| Nesting | At most 64 levels in each of `state`, `instructions`, and `criteria` |
+| Numbers | Finite only: `NaN`, `Infinity`, and out-of-range values like `1e400` are rejected. Send exact large values as strings. |
+| Compression | Optional `Content-Encoding: gzip` (or `x-gzip`) or `zstd`, one layer, zstd window up to 8 MiB. The 32 MiB limit applies before and after decompression. Both SDKs compress bodies of 1 KiB or more with zstd by default, when zstd is available (Python 3.14+ or the `zstd` extra; Node.js 22.15+). |
+
+Rate limits are set per organization, in tokens and requests per second; see [Models → Rate limits](12-models.md#rate-limits).
 
 ### Handling rate limits yourself (no SDK)
 

@@ -18,14 +18,16 @@ Content-Type: application/json
 
 [→ API reference](09-api-reference.md)
 
-## The three question types
+## The four question types
 
-| | Choice | Score | Noul |
-|---|---|---|---|
-| Asks | Which option? | Which level? | Is it true? |
-| `criteria` | `{option: description \| null}` (≤ 255) | `[level0, level1, ...]` (2–10, ordered) | optional `{true, false}` |
-| Returns | `choice`, `probabilities`, `confidence` | `score`, `legend`, `probabilities`, `confidence` | `noul` (0–1) |
-| Maps to | a `switch` | a threshold or a sort | an `if` |
+| | Choice | Score | Noul | Box |
+|---|---|---|---|---|
+| Asks | Which option? | Which level? | Is it true? | Where is it in this image? |
+| `criteria` | `{option: description \| null}` (≤ 255) | `[level0, level1, ...]` (2–10, ordered) | optional `{true, false}` | none |
+| Returns | `choice`, `probabilities`, `confidence` | `score`, `legend`, `probabilities`, `confidence` | `noul` (0–1) | `box` (`top`, `bottom`, `left`, `right` as fractions), `confidence` |
+| Maps to | a `switch` | a threshold or a sort | an `if` | a crop or a highlight |
+
+Box needs Jev 1.14 and the `TypeSafe-Danger-Zone-Images: true` header; pair it with a Noul that asks whether the thing is there. Any question can read PNG/JPEG [images](04-primitives/images.md).
 
 ```json
 {
@@ -54,9 +56,10 @@ r.choices["q"].probabilities         # dict[str, float]
 r.choices["q"].confidence            # float 0..1
 r.scores["q"].score                  # float, 0..len(criteria)-1
 r.scores["q"].legend                 # dict[int, ...]
-r.model, r.usage.input_tokens, r.request_id
+r.boxes["q"].box                     # BoxCoordinates: top, bottom, left, right
+r.model, r.usage.input_tokens, r.request_id   # usage counts are int | None
 
-TypeSafeClient(model="jev-1.13.0", timeout=10.0, retry=RetryPolicy(max_retries=3), base_url=...)
+TypeSafeClient(model="jev-1.14.0", timeout=10.0, retry=RetryPolicy(max_retries=3), base_url=...)
 client.system_one(state, questions, model=..., retry=..., timeout=..., extra_headers=..., extra_body=..., response_model=...)
 client.models.list().models
 ```
@@ -108,9 +111,11 @@ Thresholds should **scale with the cost of being wrong**. [→ Confidence](05-co
 | Pattern | One-liner |
 |---|---|
 | [Speculative fan-out](07-patterns.md#speculative-fan-out) | Ask every question you *might* need in one call, and ignore the irrelevant answers. |
-| [Confidence-gated routing](07-patterns.md#confidence-gated-routing) | `if conf < floor: human; elif risky and conf < high: confirm; else act` |
+| [Screen with a Noul first](07-patterns.md#screen-with-a-noul-first) | One cheap yes/no first; run the expensive step only on a clear yes. |
+| [Companion Noul](07-patterns.md#companion-noul) | Pair a Choice with "does any option fit?" and trust the Choice only on a clear yes. |
+| [Routing by confidence](07-patterns.md#routing-by-confidence) | `if score.confidence < 0.5: person; else route on score.score` |
+| [Routing by probability](07-patterns.md#routing-by-probability) | `p = probabilities[choice]`; higher bar for riskier actions (e.g. 0.7, 0.9) |
 | [Composite scoring](07-patterns.md#composite-scoring) | `sum(w_k * score_k / top_level_k)`: weights live in code. |
-| [Intent routing](07-patterns.md#intent-routing) | A fast Choice in front of deterministic code, specialist LLMs, and humans. |
 
 ## Do and don't
 
@@ -119,26 +124,27 @@ Thresholds should **scale with the cost of being wrong**. [→ Confidence](05-co
 | Ask one snap judgment per question | Ask "analyze this and decide what to do" |
 | Send many questions per request | Make one round trip per question |
 | Describe levels as situations | Use `["0", "1", "2"]` as levels |
-| Add `other` or `none` options | Force a fit with no escape hatch |
+| Add a companion Noul ("does any option fit?") | Force a fit with no escape hatch |
 | Phrase a Noul so high means yes | Invert `true`/`false` against the instruction |
 | Filter the state down to what's relevant | Dump the whole database into `state` |
 | Do math, counting, and date comparison in code | Ask Jev to count or compare dates |
 | Extract candidates with regex, then let Jev **pick** | Ask Jev to generate text |
-| Pin `jev-1.13.0` once thresholds are tuned | Tune against `jev-latest` and forget |
+| Pin `jev-1.14.0` once thresholds are tuned | Tune against `jev-latest` and forget |
 | Keep questions and thresholds in one file | Scatter prompts across the codebase |
 
-## Limits & pricing (Jev 1.13)
+## Limits & pricing (Jev 1.14 and 1.13)
 
 | | |
 |---|---|
 | Price | $0.042 per million input tokens; output is free |
-| Rate limits | 100K tokens/s and 80 requests/s (dynamic) |
-| Context | 64k per request; 32k for state plus the longest question |
+| Rate limits | Per organization, in tokens/s and requests/s; see console.typesafe.ai/rate-limits |
+| Context | 64k per request; 32k for state plus any one question. `TypeSafe-Danger-Zone-Long-Context: true` raises both to 262k (slower, less accurate) |
+| Input | Text, plus PNG/JPEG images (280–1568 px per side, 16 MiB each, 32 MiB body) |
 | Options | Choice ≤ 255; Score 2–10 levels |
-| Questions per request | No documented count limit; the token limits above apply |
+| Questions per request | No separate limit; the context limits above apply |
 | Latency | About 100 ms for most requests; extra questions barely add to it |
 | SDK timeouts | 10 s per attempt, 2 retries; Python also caps the whole call at 30 s (`RetryPolicy.timeout`) |
-| Errors | 401 · 422 · 429 · 529 (the SDKs retry 408, 429, and 5xx) |
+| Errors | 400 · 401 · 413 · 415 · 422 · 429 · 529 (the SDKs retry 408, 429, and 5xx) |
 
 [→ Models](12-models.md)
 

@@ -2,9 +2,45 @@
 
 [← JavaScript reference](README.md) · [JS SDK guide](../../11-sdk-javascript.md) · Official: <https://docs.typesafe.ai/sdk/javascript/api>
 
+- [box](#function-box)
 - [choice](#function-choice)
-- [noul](#function-noul)
-- [score](#function-score)
+- [image](#function-image)
+
+
+---
+
+## Function: box()
+
+```ts
+function box(instructions?): BoxQuestion;
+```
+
+Create a question that locates what its instructions describe in the request's image.
+Use the `jev-preview` model for `box` questions.
+
+### Parameters
+
+#### instructions?
+
+[`EntryType`](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/EntryType) = `null`
+
+What to locate, as text, an asset, a JSON object or array; defaults to `null`.
+
+### Returns
+
+[`BoxQuestion`](https://docs.typesafe.ai/sdk/javascript/api/interfaces/BoxQuestion)
+
+### Example
+
+```ts
+const { answers } = await client.systemOne({
+  state: image(await openAsBlob("photo.jpg")),
+  questions: { dog: box("The dog") },
+  model: "jev-preview",
+});
+const { top, bottom, left, right } = answers.dog.box;
+```
+
 
 
 ---
@@ -21,13 +57,13 @@ Create a question that selects between named alternatives.
 
 #### T
 
-`T` *extends* [`ChoiceCriteria`](type-aliases.md#type-alias-choicecriteria)
+`T` *extends* [`ChoiceCriteria`](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/ChoiceCriteria)
 
 ### Parameters
 
 #### instructions
 
-[`EntryType`](type-aliases.md#type-alias-entrytype)
+[`EntryType`](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/EntryType)
 
 The question as text, a JSON object or array, or `null`.
 
@@ -39,99 +75,50 @@ Labels mapped to descriptions, or `null` for undescribed labels.
 
 ### Returns
 
-[`ChoiceQuestion`](interfaces.md#interface-choicequestiont)\<`T`>
+[`ChoiceQuestion`](https://docs.typesafe.ai/sdk/javascript/api/interfaces/ChoiceQuestion)\<`T`>
 
 
 
 ---
 
-## Function: noul()
+## Function: image()
 
 ```ts
-function noul(instructions?, criteria?): NoulQuestion;
+function image(data): Image;
 ```
 
-Create a yes/no question with optional descriptions for either outcome.
+Create an image asset for `systemOne`.
+
+Place the image in `state` or question content, or interpolate it into a `withAssets`
+tagged template; either way it is sent under its own reference, `String(image)`. To
+reference it by a name of your choice, pass it in `assets` instead.
+
+The image must be PNG or JPEG. The API detects the format from the file bytes and rejects
+other formats with a `BadRequestError`. `Blob` data is read when the request is sent, and its
+`type` is ignored. For base64 text, use `Image.fromBase64`.
 
 ### Parameters
 
-#### instructions?
+#### data
 
-[`EntryType`](type-aliases.md#type-alias-entrytype) = `null`
+`ArrayBuffer` | `ArrayBufferView`\<`ArrayBufferLike`> | `Blob`
 
-The question as text, a JSON object or array; defaults to `null`.
-
-#### criteria?
-
-\| \{
-`false?`: [`EntryType`](type-aliases.md#type-alias-entrytype);
-`true?`: [`EntryType`](type-aliases.md#type-alias-entrytype);
-}
-\| `null`
-
-Optional descriptions of the yes and no outcomes.
-
-##### Type Literal
-
-\{
-`false?`: [`EntryType`](type-aliases.md#type-alias-entrytype);
-`true?`: [`EntryType`](type-aliases.md#type-alias-entrytype);
-}
-
-Optional descriptions of the yes and no outcomes.
-
-###### false?
-
-[`EntryType`](type-aliases.md#type-alias-entrytype)
-
-Description of the no outcome.
-
-###### true?
-
-[`EntryType`](type-aliases.md#type-alias-entrytype)
-
-Description of the yes outcome.
-
-***
-
-`null`
+Image file bytes, or a `Blob` such as a `File`.
 
 ### Returns
 
-[`NoulQuestion`](interfaces.md#interface-noulquestion)
+[`Image`](https://docs.typesafe.ai/sdk/javascript/api/classes/Image)
 
+### Throws
 
+`data` is empty or isn't file bytes or a `Blob`.
 
----
-
-## Function: score()
+### Example
 
 ```ts
-function score<T>(instructions, criteria): ScoreQuestion<T>;
+// Node: `openAsBlob` reads a file as a Blob and is exported by "node:fs".
+const { answers } = await client.systemOne({
+  state: image(await openAsBlob("product.png")),
+  questions: { damaged: noul("Is the product damaged?") },
+});
 ```
-
-Create a score question using an ordered rubric.
-
-### Type Parameters
-
-#### T
-
-`T` *extends* [`ScoreCriteria`](type-aliases.md#type-alias-scorecriteria)
-
-### Parameters
-
-#### instructions
-
-[`EntryType`](type-aliases.md#type-alias-entrytype)
-
-The question as text, a JSON object or array, or `null`.
-
-#### criteria
-
-`T`
-
-At least two descriptions indexed by score from zero; entries may be `null`.
-
-### Returns
-
-[`ScoreQuestion`](interfaces.md#interface-scorequestiont)\<`T`>

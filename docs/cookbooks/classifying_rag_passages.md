@@ -72,37 +72,48 @@ flowchart LR
 
 ## Setup
 
+> [card] [Run in Colab](https://colab.research.google.com/github/typesafe-ai/typesafe-public-examples/blob/main/cookbooks/classifying_rag_passages/classifying_rag_passages.ipynb)
+>
+> Runs as published without an API key.
+
+> [card] [Python file](https://github.com/typesafe-ai/typesafe-public-examples/blob/main/cookbooks/classifying_rag_passages/classifying_rag_passages.py)
+>
+> This page as one .py file, to run locally.
+
+> [card] [Open in playground](https://console.typesafe.ai/playground#share/N4IgJg9gxgrgtgUwHYBcAqCAeKQC4AEIwAOiAI4wIBOAnqQaQEoIBmVCAzgBb4oQDWyDviwAHAJbt8AQxYpq+AMwAGfGGk1hAWnxcIAdzUR8ASRHZkYXl2kp8+8Ukj6A-KQA0+UqOkcO0gHMEenwSEHEwENIOTg5xCCQOLWUARg8vEBRxFAAbYLwMgFUYqnwYv3jEggB1GztxYWky2Mq3EE9SeWwokABBZoqE-Ab8KHZbBCt9LmQZfBgSsvEAxOGkADp8ACEaNVZpGByUT2z8HN8UYUcwVkdshBzd6Sc5hYUoZ91pADcEGSR5kgcuI4PcrEh4AAjBQQFgyKBZX4DOIJYRDXz4ODPXY3b7iKCcdbEYhIYlIfrlFEAkbsUTsGKoSb4SG7FAzfAAZRgPkhvj+vRgbPhBL8vAEs0c1j+LAgVDg+FhcwAUtU0J5nlYmuw2JweHxBADpvieCMmjAkOIKH8OCgqI4AkSSWTelARcJ9UIZFIbnEVky+MzrXoqHZgb8wJ4FjBpDlHoGUPoELMAKyYxyCzj-KwpXQQGClI15fDa+l68WrJAIX6lMSSP6QwWjT4JOPQ+YxKwJAmbACaeabAKwUBsSCCcxLurFBoVQN2Xb+AaCdialcM0ldsSzxdYpansx8kkdpJJaC4Izp0E3Iw+saZACo7xPuPapcjKusH2TnW+hvI5Y4Jg4TwblESwXyGKAEhYZZ81sSpPGmZBcDJHRTz+N5SigYEoH4YRfQBPMUCPVD2Qw0YRyCd0ZkkfAfD8fRZU7UpQKoGU5UaZpYDtFBdgZOJET+dcsgSYjTDsLJEDRRswEoMU1iE8Q8R40STDscZh0zbJhCxTAQXgM5xBYBAJIQUT+jI-CrgIgFnggNkFFxfFTPSaI8yoAkAH0eNAnpYWgqBxBjDzIFgRBUDghJSAAXyi9pCAvOBREuDBsAKIhSAaDz2Dyb5nhQEIwm8-IGBAJA8xyFzwkSW0YARSoOB6AARCBMzZc9fH8MdpDAMB6So60YEhAArBAEQVOF7PwK1aDaKKOhASDwscDgPOeDhEyoDyqwiZACQKzoaB8gpSDKw5KuWmq6tRJqWqo9q-ECa0UAmNY2KxYSAQWaRISLSUmjAOsxrWjbZvmxbbW6-FLg86aaA8ukEFBGJ9syQ7ioyU6KrijLqqoWqPoa46QGa1qz2EOjOr+RaWGwuwHCFJoWCE6Mclo9gkaeiYrElSbYdBjJwekZb4aoCBEpQDzHBGq7SQKQq0Z6THztx-H6pu0n7spmQUHkcW5PB0XWcmjhNF1-51uoF9ecoGbotizwQGkCQADVqCpNLvhSEAoqAA)
+>
+> Edit one request and run it live. Needs a TypeSafe account.
+
+To run it on your own machine instead:
+
 ```bash
-pip install anthropic openai matplotlib ipython 'cooksafe>=0.2.0,<0.3.0'
+pip install anthropic openai matplotlib ipython 'cooksafe>=0.3.0,<0.4.0'
 ```
 
-Set `TYPESAFE_API_KEY`, `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`. We use TypeSafe to score
-each retrieved passage, OpenAI to embed the corpus for the search step, and Claude to write
-the final answer out of whatever survives the scoring.
+The code replays saved answers, so it runs as published without an API key. To change a
+request, set `TYPESAFE_API_KEY`, `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`; in Colab, add
+them in the Secrets panel. We use Jev to score each retrieved passage, OpenAI to embed the
+corpus for the search step, and Claude to write the final answer out of whatever survives
+the scoring.
 
-None of the three needs a key to reproduce this page. `json_cache.json` ships with the
-cookbook and replays every recorded call, so a re-render costs nothing. Delete the file to
-run the pipeline live instead. The numbers here came out of `jev-1.12` and
-`claude-sonnet-5` on 2026-08-27.
+The numbers here came out of `jev-1.14.0` and `claude-sonnet-5` on 2026-11-03.
 
 ```python
 import json
 import os
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from time import perf_counter
 
 import anthropic
-import matplotlib
 from cooksafe import JsonCache, make_playground_link
+import matplotlib.pyplot as plt
 from IPython.display import Markdown, display
 from openai import OpenAI
 from typesafe_sdk import Noul, TypeSafeClient
 
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-
-TYPESAFE_MODEL = "jev-1.12"
+TYPESAFE_MODEL = "jev-1.14.0"  # the page's model; "jev-latest" runs the newest, live
 GENERATOR_MODEL = "claude-sonnet-5"  # writes the answer out of what the routing keeps
 EMBED_MODEL = "text-embedding-3-small"
 EMBED_DIMS = 256  # short vectors keep the shipped cache small; plenty for 81 passages
@@ -118,6 +129,19 @@ THRESHOLDS = {
     "evidence_min": 0.55,  # above this it states something usable in an answer
 }
 
+# The keys this cookbook uses. In Colab, keys saved in the Secrets panel are copied in here.
+KEYS = ["TYPESAFE_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"]
+try:
+    from google.colab import userdata
+except ImportError:  # not in Colab
+    userdata = None
+for key in KEYS:
+    if userdata is not None and key not in os.environ:
+        try:
+            os.environ[key] = userdata.get(key)
+        except (userdata.SecretNotFoundError, userdata.NotebookAccessError):
+            pass  # not saved, or this notebook may not read it
+
 client = TypeSafeClient(
     api_key=os.environ.get("TYPESAFE_API_KEY", "cache-only"),  # keyless kernels replay
     base_url=os.environ.get("TYPESAFE_ENDPOINT"),
@@ -127,7 +151,27 @@ generator = anthropic.Anthropic(
     api_key=os.environ.get("ANTHROPIC_API_KEY", "cache-only")
 )
 embedder = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "cache-only"))
-json_cache = JsonCache(Path("json_cache.json"))
+
+EXAMPLES = (
+    "https://raw.githubusercontent.com/typesafe-ai/typesafe-public-examples/main/"
+    "cookbooks/classifying_rag_passages"
+)
+
+def download(name: str) -> Path:
+    """Fetch one of this cookbook's files from typesafe-public-examples unless it is on disk."""
+    path = Path(name)
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        urllib.request.urlretrieve(f"{EXAMPLES}/{name}", path)
+    return path
+
+CACHE = Path("classifying_rag_passages_cache.json")
+# True fills CACHE with the published answers, so the run makes no requests. To run
+# live, set it to False and delete CACHE; a CACHE already on disk is never overwritten.
+DOWNLOAD_CACHE = True
+if DOWNLOAD_CACHE:
+    download(CACHE.name)
+json_cache = JsonCache(CACHE)
 ```
 
 ## Load the docs corpus
@@ -150,7 +194,7 @@ We also wrote two of the six queries to state a premise the docs contradict, so 
 injection and conflict routes both have something to catch.
 
 ```python
-PASSAGES = json.loads(Path("corpus.json").read_text(encoding="utf-8"))
+PASSAGES = json.loads(download("corpus.json").read_text(encoding="utf-8"))
 BY_ID = {p["id"]: p for p in PASSAGES}
 
 counts: dict[str, int] = {}
@@ -185,14 +229,14 @@ A session is represented by the Supabase Auth access token in t...
 Rank the passages by cosine similarity over embeddings, using `text-embedding-3-small` at
 256 dimensions, and keep the best `TOP_K = 12` for each query. Short vectors keep the
 shipped cache small, and the embedding calls are cached with everything else, so the
-vectors travel inside `json_cache.json`.
+vectors travel inside `classifying_rag_passages_cache.json`.
 
 ```python
 @json_cache
-def embed(texts: tuple[str, ...]) -> list[list[float]]:
+def embed(texts: tuple[str, ...], embed_model: str) -> list[list[float]]:
     """One call for many texts; the tuple argument keeps the cache key small and hashable."""
     response = embedder.embeddings.create(
-        model=EMBED_MODEL, input=list(texts), dimensions=EMBED_DIMS
+        model=embed_model, input=list(texts), dimensions=EMBED_DIMS
     )
     return [item.embedding for item in response.data]
 
@@ -203,12 +247,14 @@ def cosine(a: list[float], b: list[float]) -> float:
 PASSAGE_VECTORS = dict(
     zip(
         [p["id"] for p in PASSAGES],
-        embed(tuple(f"{p['title']}\n\n{p['text']}" for p in PASSAGES)),
+        embed(
+            tuple(f"{p['title']}\n\n{p['text']}" for p in PASSAGES), embed_model=EMBED_MODEL
+        ),
     )
 )
 
 def retrieve(query: str, k: int) -> list[dict]:
-    vector = embed((query,))[0]
+    vector = embed((query,), embed_model=EMBED_MODEL)[0]
     scored = [(cosine(vector, PASSAGE_VECTORS[p["id"]]), p["id"]) for p in PASSAGES]
     scored.sort(
         key=lambda pair: (-pair[0], pair[1])
@@ -302,7 +348,7 @@ PASSAGE_QUESTIONS = {
     ),
 }
 
-def gate_document(query: str, passage: dict) -> dict:
+def passage_state(query: str, passage: dict) -> dict:
     return {
         "query": query,
         "passage": {
@@ -311,25 +357,32 @@ def gate_document(query: str, passage: dict) -> dict:
     }
 
 @json_cache
-def gate(query: str, passage_id: str) -> dict:
+def gate(state_json: str, questions_json: str, model: str) -> dict:
     started = perf_counter()
+    questions = json.loads(questions_json)
     response = client.system_one(
-        state=gate_document(query, BY_ID[passage_id]),
-        questions=PASSAGE_QUESTIONS,
-        model=TYPESAFE_MODEL,
+        state=json.loads(state_json),
+        questions=questions,
+        model=model,
     )
-    answers = {key: response.answers[key].noul for key in PASSAGE_QUESTIONS}
+    answers = {key: response.answers[key].noul for key in questions}
     answers["seconds"] = round(perf_counter() - started, 2)
     # tokens and requests are the durable units; don't cache a derived dollar cost
     answers["input_tokens"] = response.usage.input_tokens or 0
     answers["output_tokens"] = response.usage.output_tokens or 0
     return answers
 
-def gate_all(query: str, passages: list[dict]) -> list[dict]:
+def answer_passages(query: str, passages: list[dict]) -> list[dict]:
     """One request per passage, four at a time. Keep the pool small: the public endpoint
     rate-limits, and JsonCache writes after every call so a retry only pays for the misses."""
+    questions = json.dumps(
+        {key: q.model_dump(mode="json", exclude_none=True) for key, q in PASSAGE_QUESTIONS.items()}
+    )
+    states = [json.dumps(passage_state(query, passage)) for passage in passages]
     with ThreadPoolExecutor(max_workers=4) as pool:
-        return list(pool.map(lambda passage: gate(query, passage["id"]), passages))
+        return list(
+            pool.map(lambda state: gate(state, questions, model=TYPESAFE_MODEL), states)
+        )
 ```
 
 ## Route each passage in code
@@ -350,10 +403,10 @@ The tests, in order:
 
 Injection comes first because it is a security decision, not an evidence one. The
 contradiction test comes before the evidence test because a passage that denies the
-query's premise usually states something usable too; tested the other way round, it would
+query's premise can state something usable too; tested the other way round, it would
 land in the accepted block instead of the conflict one.
 
-> ℹ️ **Info**
+> [!NOTE]
 >
 > We picked these four numbers for this corpus. Treat them as a starting point, not
 > defaults. Moving one is cheap: `THRESHOLDS` holds all four and `route()` reads only the
@@ -373,10 +426,10 @@ def route(answers: dict, thresholds: dict = THRESHOLDS) -> str:
 
 ROUTE_ORDER = ["include", "conflicting_evidence", "exclude"]
 
-def gate_query(query: str) -> list[dict]:
+def route_query(query: str) -> list[dict]:
     """Retrieve, score, route. One record per passage, in ranked order."""
     passages = retrieve(query, TOP_K)
-    answers = gate_all(query, passages)
+    answers = answer_passages(query, passages)
     return [
         {"passage": passage, "answers": answer, "route": route(answer)}
         for passage, answer in zip(passages, answers)
@@ -393,7 +446,7 @@ def show_routes(routed: list[dict]) -> None:
             f"  {record['passage']['id']}"
         )
 
-ROUTED = {query: gate_query(query) for query in QUERIES}
+ROUTED = {query: route_query(query) for query in QUERIES}
 print(f'"{HEADLINE_QUERY}"\n')
 show_routes(ROUTED[HEADLINE_QUERY])
 ```
@@ -402,26 +455,26 @@ show_routes(ROUTED[HEADLINE_QUERY])
 "Refresh tokens expire after 30 days - how do I extend that window?"
 
 route                   rel  evid contra   inj  id
-exclude                0.71  0.36   0.90  0.99  forum-injection
-exclude                0.18  0.42   0.35  0.23  sessions-05
-exclude                0.09  0.12   0.15  0.22  sessions-06-a
-exclude                0.48  0.41   0.39  0.26  sessions-04-b
-exclude                0.10  0.17   0.11  0.19  sessions-07-b
-exclude                0.19  0.31   0.20  0.25  sessions-09
-conflicting_evidence   0.49  0.51   0.92  0.15  sessions-01
-exclude                0.03  0.05   0.08  0.14  password-security-39
-exclude                0.10  0.16   0.19  0.15  signing-keys-51-c
-exclude                0.13  0.10   0.11  0.11  sessions-08-a
-exclude                0.04  0.05   0.10  0.16  signing-keys-55-b
-exclude                0.04  0.05   0.10  0.13  signing-keys-54-a
+exclude                0.60  0.70   0.78  0.98  forum-injection
+exclude                0.18  0.26   0.28  0.21  sessions-05
+exclude                0.11  0.12   0.24  0.20  sessions-06-a
+exclude                0.45  0.50   0.37  0.21  sessions-04-b
+exclude                0.09  0.12   0.20  0.18  sessions-07-b
+exclude                0.18  0.32   0.24  0.20  sessions-09
+conflicting_evidence   0.58  0.78   0.92  0.18  sessions-01
+exclude                0.04  0.05   0.12  0.15  password-security-39
+exclude                0.08  0.10   0.21  0.16  signing-keys-51-c
+exclude                0.12  0.11   0.16  0.12  sessions-08-a
+exclude                0.05  0.05   0.15  0.16  signing-keys-55-b
+exclude                0.04  0.05   0.13  0.16  signing-keys-54-a
 ```
 
 The premise-contradiction question scores `sessions-01` at 0.92 and sends it to the
-conflict block. Relevance reads 0.49 and answer evidence 0.51, so those two alone would
-have dropped it.
+conflict block. Relevance reads 0.58 and answer evidence 0.78, so without the
+contradiction test ahead of them it would have landed in the accepted block.
 
-Similarity ranked `forum-injection` first and its relevance clears the floor at 0.71. The
-injection score of 0.99 is what drops it.
+Similarity ranked `forum-injection` first and its relevance clears the floor at 0.60. The
+injection score of 0.98 is what drops it.
 
 Nothing reaches the prompt as evidence, which is right for a question built on a false
 premise. Below, the same table for a query the docs do answer.
@@ -435,25 +488,25 @@ show_routes(ROUTED[QUERIES[5]])
 "How long should an access token live?"
 
 route                   rel  evid contra   inj  id
-include                0.99  0.98   0.03  0.23  sessions-05
-exclude                0.08  0.08   0.11  0.15  signing-keys-55-b
-exclude                0.07  0.06   0.09  0.14  signing-keys-54-a
-exclude                0.07  0.08   0.10  0.20  signing-keys-57-d
-exclude                0.23  0.09   0.19  0.99  forum-injection
-exclude                0.24  0.17   0.08  0.28  sessions-06-a
-exclude                0.77  0.46   0.07  0.17  sessions-08-a
-include                0.91  0.88   0.07  0.26  signing-keys-51-c
-include                0.99  0.98   0.05  0.13  sessions-01
-exclude                0.09  0.09   0.06  0.14  jwts-19-b
-include                0.79  0.57   0.06  0.31  sessions-09
-exclude                0.12  0.11   0.07  0.20  sessions-07-b
+include                0.98  0.98   0.06  0.19  sessions-05
+exclude                0.10  0.06   0.13  0.20  signing-keys-55-b
+exclude                0.09  0.06   0.13  0.18  signing-keys-54-a
+exclude                0.10  0.07   0.11  0.17  signing-keys-57-d
+exclude                0.22  0.22   0.19  0.98  forum-injection
+exclude                0.16  0.16   0.10  0.21  sessions-06-a
+exclude                0.51  0.41   0.09  0.12  sessions-08-a
+include                0.90  0.93   0.11  0.23  signing-keys-51-c
+include                0.97  0.98   0.09  0.13  sessions-01
+exclude                0.07  0.09   0.09  0.18  jwts-19-b
+exclude                0.70  0.48   0.10  0.26  sessions-09
+exclude                0.08  0.09   0.10  0.15  sessions-07-b
 ```
 
-Four passages reach the evidence block here, and the answer below cites all four. The
+Three passages reach the evidence block here, and the answer below cites all three. The
 rows print in retrieval order, which shows the reshuffle: ranks 2, 3 and 4 all read
 *Lifetime of a signing key*, the wrong kind of lifetime in almost the query's own words,
-and all three score 0.08 or less on relevance. Three of the four that made it sat 8th,
-9th and 11th. `forum-injection` is excluded again at 0.99.
+and all three score 0.10 or less on relevance. Two of the three that made it sat 8th and
+9th. `forum-injection` is excluded again at 0.98.
 
 The injection question is a filter, and only one. A passage that scores under the
 threshold still reaches the prompt, so the generator prompt has to treat every passage as
@@ -464,7 +517,7 @@ request, because each question is about one pair.
 
 ## Build the prompt from the accepted evidence
 
-TypeSafe scores the passages and the routing labels them. An LLM still writes the answer,
+Jev scores the passages and the routing labels them. An LLM still writes the answer,
 here `claude-sonnet-5`. Keep accepted and conflicting evidence in separate blocks.
 
 Two blocks let the answer push back. Merge them into one and the generator has no way to
@@ -505,9 +558,9 @@ def build_prompt(query: str, routed: list[dict]) -> str:
     )
 
 @json_cache
-def generate(query: str, prompt: str) -> dict:
+def generate(query: str, prompt: str, generator_model: str) -> dict:
     response = generator.messages.create(
-        model=GENERATOR_MODEL,
+        model=generator_model,
         max_tokens=800,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -519,7 +572,9 @@ def generate(query: str, prompt: str) -> dict:
     }
 
 def answer(query: str) -> str:
-    return generate(query, build_prompt(query, ROUTED[query]))["text"]
+    return generate(
+        query, build_prompt(query, ROUTED[query]), generator_model=GENERATOR_MODEL
+    )["text"]
 
 prompt = build_prompt(HEADLINE_QUERY, ROUTED[HEADLINE_QUERY])
 print(f"The prompt for the first query, {len(prompt):,} characters:\n")
@@ -569,7 +624,7 @@ for query in SHOWN:
     print(answer(query))
 ```
 
-```text
+```
 
 ========================================================================================
 "Refresh tokens expire after 30 days - how do I extend that window?"
@@ -583,116 +638,127 @@ Since this passage is marked as conflicting/unverified evidence rather than acce
 
 ========================================================================================
 "How long should an access token live?"
-  include 4, exclude 8
+  include 3, exclude 9
 
-**Recommended access token (JWT) lifetime**
+**Recommended access token lifetime: 1 hour (default), generally within a 5-minute to 1-hour range.**
 
-- The **default and generally recommended expiration is 1 hour** [sessions-05].
-- More broadly, access tokens are designed to be short-lived, **typically ranging between 5 minutes and 1 hour** [sessions-01].
-- Setting expiration **above 1 hour is generally discouraged** for security reasons, though it "may make sense in certain situations" [sessions-05].
-- Setting expiration **below 5 minutes (and especially below 2 minutes) is discouraged** in most cases, because [sessions-05]:
-  - It increases refresh token usage and load on the Auth server.
-  - Clock skew between servers and user devices can cause hard-to-debug errors.
-  - Supabase's client libraries try to refresh sessions ahead of expiry, which isn't possible if the window is too short.
-  - Access tokens should stay valid at least as long as your longest-running request, to avoid tokens expiring mid-request.
+- The default and recommended expiration for access tokens (JWTs) is **1 hour**, configurable in Auth settings > Sessions [sessions-05].
+- Values **above 1 hour are generally discouraged** for security reasons, though there may be specific use cases where it makes sense [sessions-05].
+- Values **below 5 minutes (and especially below 2 minutes)** should generally be avoided, because:
+  - Shorter expiration increases refresh token usage and load on the Auth server [sessions-05].
+  - Clock skew between servers and user devices can cause hard-to-debug errors if the window is too short [sessions-05].
+  - Supabase client libraries try to refresh sessions ahead of expiry, which isn't possible if the lifetime is too short [sessions-05].
+  - Access tokens should last at least as long as your longest-running request, to avoid tokens expiring mid-request [sessions-05].
+- This aligns with [sessions-01], which states access tokens are "designed to be short lived, usually between 5 minutes and 1 hour."
+- If rotating JWT signing keys, [signing-keys-51-c] notes that if your access token expiry is set to 1 hour, you should wait at least 1 hour 15 minutes before revoking a legacy JWT secret, to avoid forcibly signing out active users — a practical consideration tied to whatever expiration value you choose.
 
-**Practical implication for key/secret rotation:** If your access token expiry is set to 1 hour, you should wait at least 1 hour and 15 minutes before revoking a legacy JWT secret, to avoid forcibly signing out active users (unless there's an active security incident requiring immediate revocation) [signing-keys-51-c].
-
-**Related note on sign-out enforcement:** Access tokens remain valid until they expire even after a user signs out (sessions are removed from the database, but the JWT itself isn't invalidated early) unless you add extra validation logic against `auth.sessions`. The guidance here is to "adjust the JWT expiry time to an acceptable value" rather than rely on strict revocation checks for most use cases [sessions-09].
-
-**No conflicts** were found between the passages — they consistently point to a default/recommended value of 1 hour, with an acceptable range of roughly 5 minutes to 1 hour, and caution against going much shorter or longer without specific need.
+No conflicts were found between the passages; they are consistent in recommending a default of 1 hour, with an acceptable general range of 5 minutes to 1 hour.
 ```
 
 The first answer arrived with an empty accepted block and one conflicting passage. It
 opens with "I don't have sufficient accepted evidence", names the conflict, and quotes
 `sessions-01` on refresh tokens never expiring rather than inventing a 30-day setting.
 
-The second had 4 accepted passages and no conflict, and cites all four. Nothing of the
+The second had 3 accepted passages and no conflict, and cites all three. Nothing of the
 injected instruction reaches the text.
 
 ## Compare the six queries
 
 ```python
-SURFACE, INK, INK2, MUTED = "#fcfcfb", "#0b0b0b", "#52514e", "#898781"
-GRID, AXIS, BLUE, ORANGE = "#e1e0d9", "#c3c2b7", "#2a78d6", "#eb6834"
-
-ROUTE_COLOR = {
-    "include": BLUE,
-    "conflicting_evidence": ORANGE,
-    "exclude": GRID,
-}
-ROUTE_LABEL = {
-    "include": "included as evidence",
-    "conflicting_evidence": "kept as a conflict",
-    "exclude": "excluded",
+CHART_PALETTES = {
+    "light": {
+        "surface": "#ffffff", "ink": "#0b0b0b", "ink2": "#52514e", "muted": "#898781",
+        "grid": "#e1e0d9", "axis": "#c3c2b7", "blue": "#2a78d6", "orange": "#eb6834",
+    },
+    "dark": {
+        "surface": "#0d0a0f", "ink": "#fafafa", "ink2": "#d4d4d8", "muted": "#a1a1aa",
+        "grid": "#2e2e33", "axis": "#52525b", "blue": "#5b9be8", "orange": "#f08050",
+    },
 }
 
-def style(ax):
-    ax.set_facecolor(SURFACE)
-    for side in ("top", "right"):
-        ax.spines[side].set_visible(False)
-    for side in ("left", "bottom"):
-        ax.spines[side].set_color(AXIS)
-    ax.tick_params(colors=MUTED, labelcolor=INK2, labelsize=9)
-    ax.set_axisbelow(True)
+def draw_routes(p: dict) -> plt.Figure:
+    ROUTE_COLOR = {
+        "include": p["blue"],
+        "conflicting_evidence": p["orange"],
+        "exclude": p["grid"],
+    }
+    ROUTE_LABEL = {
+        "include": "included as evidence",
+        "conflicting_evidence": "kept as a conflict",
+        "exclude": "excluded",
+    }
 
-fig, ax = plt.subplots(figsize=(9.0, 3.9), facecolor=SURFACE)
-style(ax)
-ax.grid(axis="x", color=GRID, linewidth=0.8)
+    def style(ax):
+        ax.set_facecolor(p["surface"])
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+        for side in ("left", "bottom"):
+            ax.spines[side].set_color(p["axis"])
+        ax.tick_params(colors=p["muted"], labelcolor=p["ink2"], labelsize=9)
+        ax.set_axisbelow(True)
 
-labels = []
-for row, query in enumerate(QUERIES):
-    routed = ROUTED[query]
-    left = 0
-    for name in ROUTE_ORDER:
-        width = sum(1 for record in routed if record["route"] == name)
-        if not width:
-            continue
-        ax.barh(
-            row,
-            width,
-            left=left,
-            color=ROUTE_COLOR[name],
-            edgecolor=SURFACE,
-            linewidth=1.2,
-        )
-        ax.text(
-            left + width / 2,
-            row,
-            str(width),
-            ha="center",
-            va="center",
-            fontsize=8.5,
-            color=INK if name == "exclude" else SURFACE,
-        )
-        left += width
-    wrapped = query if len(query) <= 44 else query[:42] + "..."
-    labels.append(f"{wrapped}\n{left} passages scored")
+    fig, ax = plt.subplots(figsize=(9.0, 3.9), facecolor=p["surface"])
+    style(ax)
+    ax.grid(axis="x", color=p["grid"], linewidth=0.8)
 
-ax.set_yticks(range(len(QUERIES)), labels, fontsize=8.5)
-ax.invert_yaxis()
-ax.set_xlabel("passages, by the route they were given", color=INK2, fontsize=9)
-ax.set_title(
-    f"Where {sum(len(r) for r in ROUTED.values())} retrieved passages went, "
-    f"across {len(QUERIES)} queries",
-    color=INK,
-    fontsize=11,
-    loc="left",
-)
-handles = [plt.Rectangle((0, 0), 1, 1, color=ROUTE_COLOR[n]) for n in ROUTE_ORDER]
-ax.legend(
-    handles,
-    [ROUTE_LABEL[n] for n in ROUTE_ORDER],
-    frameon=False,
-    fontsize=8.5,
-    labelcolor=INK2,
-    ncol=3,
-    loc="lower right",
-    bbox_to_anchor=(1.0, -0.40),
-)
-fig.tight_layout()
-display(fig)
-plt.close(fig)
+    labels = []
+    for row, query in enumerate(QUERIES):
+        routed = ROUTED[query]
+        left = 0
+        for name in ROUTE_ORDER:
+            width = sum(1 for record in routed if record["route"] == name)
+            if not width:
+                continue
+            ax.barh(
+                row,
+                width,
+                left=left,
+                color=ROUTE_COLOR[name],
+                edgecolor=p["surface"],
+                linewidth=1.2,
+            )
+            ax.text(
+                left + width / 2,
+                row,
+                str(width),
+                ha="center",
+                va="center",
+                fontsize=8.5,
+                color=p["ink"] if name == "exclude" else p["surface"],
+            )
+            left += width
+        wrapped = query if len(query) <= 44 else query[:42] + "..."
+        labels.append(f"{wrapped}\n{left} passages scored")
+
+    ax.set_yticks(range(len(QUERIES)), labels, fontsize=8.5)
+    ax.invert_yaxis()
+    ax.set_xlabel("passages, by the route they were given", color=p["ink2"], fontsize=9)
+    ax.set_title(
+        f"Where {sum(len(r) for r in ROUTED.values())} retrieved passages went, "
+        f"across {len(QUERIES)} queries",
+        color=p["ink"],
+        fontsize=11,
+        loc="left",
+    )
+    handles = [plt.Rectangle((0, 0), 1, 1, color=ROUTE_COLOR[n]) for n in ROUTE_ORDER]
+    ax.legend(
+        handles,
+        [ROUTE_LABEL[n] for n in ROUTE_ORDER],
+        frameon=False,
+        fontsize=8.5,
+        labelcolor=p["ink2"],
+        ncol=3,
+        loc="lower right",
+        bbox_to_anchor=(1.0, -0.40),
+    )
+    fig.tight_layout()
+    return fig
+
+# The docs build sets COOKSAFE_RENDER and also draws a dark copy.
+for theme in ("light", "dark") if os.environ.get("COOKSAFE_RENDER") else ("light",):
+    fig = draw_routes(CHART_PALETTES[theme])
+    display(fig, metadata={"theme": theme})
+    plt.close(fig)
 ```
 
 ![output](../assets/cookbooks/classifying_rag_passages/classifying_rag_passages.executed.1.png)
@@ -710,11 +776,10 @@ routed to the conflict block, plus the four questions.
 ```python
 linked = next(r for r in ROUTED[HEADLINE_QUERY] if r["route"] == "conflicting_evidence")
 deeplink = make_playground_link(
-    gate_document(HEADLINE_QUERY, linked["passage"]),
+    passage_state(HEADLINE_QUERY, linked["passage"]),
     PASSAGE_QUESTIONS,
-    models=[TYPESAFE_MODEL],
 )
-display(Markdown(f"🔗 [Open the query + passage and its four questions]({deeplink})"))
+display(Markdown(f"🔗 [Open in the TypeSafe playground]({deeplink})"))
 ```
 
-<a href="https://console.typesafe.ai/playground#share/N4IgJg9gxgrgtgUwHYBcAqCAeKQC4AEIwAOiAI4wIBOAnqQaQEoIBmVCAzgBb4oQDWyDviwAHAJbt8AQxYpq+AMwAGfGGk1hAWnxcIAdzUR8ASRHZkYXl2kp8+8Ukj6A-KQA0+UqOkcO0gHMEenwSEHEwENIOTg5xCCQOLWUARg8vEBRxFAAbYLwMgFUYqnwYv3jEggB1GztxYWky2Mq3EE9SeWwokABBZoqE-Ab8KHZbBCt9LmQZfBgSsvEAxOGkADp8ACEaNVZpGByUT2z8HN8UYUcwVkdshBzd6Sc5hYUoZ91pADcEGSR5kgcuI4PcrEh4AAjBQQFgyKBZX4DOIJYRDXz4ODPXY3b7iKCcdbEYhIYlIfrlFEAkbsUTsGKoSb4SG7FAzfAAZRgPkhvj+vRgbPhBL8vAEs0c1j+LAgVDg+FhcwAUtU0J5nlYmuw2JweHxBADpvieCMmjAkOIKH8OCgqI4AkSSWTelARcJ9UIZFIbnEVky+MzrXoqHZgb8wJ4FjBpDlHoGUPoELMAKyYxyCzj-KwpXQQGClI15fDa+l68WrJAIX6lMSSP6QwWjT4JOPQ+YxKwJAmbACaeabAKwUBsSCCcxLurFBoVQN2Xb+AaCdialcM0ldsSzxdYpansx8kkdpJJaC4Izp0E3Iw+saZACo7xPuPapcjKusH2TnW+hvI5Y4Jg4TwblESwXyGKAEhYZZ81sSpPGmZBcDJHRTz+N5SigYEoH4YRfQBPMUCPVD2Qw0YRyCd0ZkkfAfD8fRZU7UpQKoGU5UaZpYDtFBdgZOJET+dcsgSYjTDsLJEDRRswEoMU1iE8Q8R40STDscZh0zbJhCxTAQXgM5xBYBAJIQUT+jI-CrgIgFnggNkFFxfFTPSaI8yoAkAH0eNAnpYWgqBxBjDzIFgRBUDghJSAAXyi9pCAvOBREuDBsAKIhSAaDz2Dyb5nhQEIwm8-IGBAJA8xyFzwkSW0YARSoOB6AARCBMzZc9fH8MdpDAMB6So60YEhAArBAEQVOF7PwK1aDaKKOhASDwscDgPOeDhEyoDyqwiZACQKzoaB8gpSDKw5KuWmq6tRJqWqo9q-ECa0UAmNY2KxYSAQWaRISLSUmjAOsxrWjbZvmxbbW6-FLg86aaA8ukEFBGJ9syQ7ioyU6KrijLqqoWqPoa46QGa1qz2EOjOr+RaWGwuwHCFJoWCE6Mclo9gkaeiYrElSbYdBjJwekZb4aoCBEpQDzHBGq7SQKQq0Z6THztx-H6pu0n7spmQUHkcW5PB0XWcmjhNF1-51uoF9ecoGbotizwQGkCQADVqCpNLvhSOKQBiPIEUmABZCAbhyDgCgAbRAEbvi0FJ1hSAAmEAAF0oqAA" target="_blank" rel="noreferrer" className="text-primary">Open the query + passage and its four questions →</a>
+[Open in the TypeSafe playground →](https://console.typesafe.ai/playground#share/N4IgJg9gxgrgtgUwHYBcAqCAeKQC4AEIwAOiAI4wIBOAnqQaQEoIBmVCAzgBb4oQDWyDviwAHAJbt8AQxYpq+AMwAGfGGk1hAWnxcIAdzUR8ASRHZkYXl2kp8+8Ukj6A-KQA0+UqOkcO0gHMEenwSEHEwENIOTg5xCCQOLWUARg8vEBRxFAAbYLwMgFUYqnwYv3jEggB1GztxYWky2Mq3EE9SeWwokABBZoqE-Ab8KHZbBCt9LmQZfBgSsvEAxOGkADp8ACEaNVZpGByUT2z8HN8UYUcwVkdshBzd6Sc5hYUoZ91pADcEGSR5kgcuI4PcrEh4AAjBQQFgyKBZX4DOIJYRDXz4ODPXY3b7iKCcdbEYhIYlIfrlFEAkbsUTsGKoSb4SG7FAzfAAZRgPkhvj+vRgbPhBL8vAEs0c1j+LAgVDg+FhcwAUtU0J5nlYmuw2JweHxBADpvieCMmjAkOIKH8OCgqI4AkSSWTelARcJ9UIZFIbnEVky+MzrXoqHZgb8wJ4FjBpDlHoGUPoELMAKyYxyCzj-KwpXQQGClI15fDa+l68WrJAIX6lMSSP6QwWjT4JOPQ+YxKwJAmbACaeabAKwUBsSCCcxLurFBoVQN2Xb+AaCdialcM0ldsSzxdYpansx8kkdpJJaC4Izp0E3Iw+saZACo7xPuPapcjKusH2TnW+hvI5Y4Jg4TwblESwXyGKAEhYZZ81sSpPGmZBcDJHRTz+N5SigYEoH4YRfQBPMUCPVD2Qw0YRyCd0ZkkfAfD8fRZU7UpQKoGU5UaZpYDtFBdgZOJET+dcsgSYjTDsLJEDRRswEoMU1iE8Q8R40STDscZh0zbJhCxTAQXgM5xBYBAJIQUT+jI-CrgIgFnggNkFFxfFTPSaI8yoAkAH0eNAnpYWgqBxBjDzIFgRBUDghJSAAXyi9pCAvOBREuDBsAKIhSAaDz2Dyb5nhQEIwm8-IGBAJA8xyFzwkSW0YARSoOB6AARCBMzZc9fH8MdpDAMB6So60YEhAArBAEQVOF7PwK1aDaKKOhASDwscDgPOeDhEyoDyqwiZACQKzoaB8gpSDKw5KuWmq6tRJqWqo9q-ECa0UAmNY2KxYSAQWaRISLSUmjAOsxrWjbZvmxbbW6-FLg86aaA8ukEFBGJ9syQ7ioyU6KrijLqqoWqPoa46QGa1qz2EOjOr+RaWGwuwHCFJoWCE6Mclo9gkaeiYrElSbYdBjJwekZb4aoCBEpQDzHBGq7SQKQq0Z6THztx-H6pu0n7spmQUHkcW5PB0XWcmjhNF1-51uoF9ecoGbotizwQGkCQADVqCpNLvhSEAoqAA)

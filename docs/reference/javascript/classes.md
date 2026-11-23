@@ -9,6 +9,7 @@
 - [APIUserAbortError](#class-apiuseraborterror)
 - [AuthenticationError](#class-authenticationerror)
 - [BadRequestError](#class-badrequesterror)
+- [Image](#class-image)
 - [InternalServerError](#class-internalservererror)
 - [NotFoundError](#class-notfounderror)
 - [PermissionDeniedError](#class-permissiondeniederror)
@@ -26,15 +27,13 @@ The request or response-body delivery failed (DNS, TLS, connection closed, etc.)
 
 ### Extends
 
-* [`TypeSafeError`](#class-typesafeerror)
+* [`TypeSafeError`](https://docs.typesafe.ai/sdk/javascript/api/classes/TypeSafeError)
 
 ### Extended by
 
-* [`APITimeoutError`](#class-apitimeouterror)
+* [`APITimeoutError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APITimeoutError)
 
 ### Constructors
-
-<a id="sdk-constructor"></a>
 
 #### Constructor
 
@@ -58,7 +57,7 @@ new APIConnectionError(message?, options?): APIConnectionError;
 
 ##### Overrides
 
-[`TypeSafeError`](#class-typesafeerror).[`constructor`](#class-typesafeerror)
+[`TypeSafeError`](https://docs.typesafe.ai/sdk/javascript/api/classes/TypeSafeError).[`constructor`](https://docs.typesafe.ai/sdk/javascript/api/classes/TypeSafeError#sdk-constructor)
 
 
 
@@ -70,21 +69,19 @@ An unsuccessful HTTP response from the API.
 
 ### Extends
 
-* [`TypeSafeError`](#class-typesafeerror)
+* [`TypeSafeError`](https://docs.typesafe.ai/sdk/javascript/api/classes/TypeSafeError)
 
 ### Extended by
 
-* [`AuthenticationError`](#class-authenticationerror)
-* [`BadRequestError`](#class-badrequesterror)
-* [`InternalServerError`](#class-internalservererror)
-* [`NotFoundError`](#class-notfounderror)
-* [`PermissionDeniedError`](#class-permissiondeniederror)
-* [`RateLimitError`](#class-ratelimiterror)
-* [`UnprocessableEntityError`](#class-unprocessableentityerror)
+* [`AuthenticationError`](https://docs.typesafe.ai/sdk/javascript/api/classes/AuthenticationError)
+* [`BadRequestError`](https://docs.typesafe.ai/sdk/javascript/api/classes/BadRequestError)
+* [`InternalServerError`](https://docs.typesafe.ai/sdk/javascript/api/classes/InternalServerError)
+* [`NotFoundError`](https://docs.typesafe.ai/sdk/javascript/api/classes/NotFoundError)
+* [`PermissionDeniedError`](https://docs.typesafe.ai/sdk/javascript/api/classes/PermissionDeniedError)
+* [`RateLimitError`](https://docs.typesafe.ai/sdk/javascript/api/classes/RateLimitError)
+* [`UnprocessableEntityError`](https://docs.typesafe.ai/sdk/javascript/api/classes/UnprocessableEntityError)
 
 ### Constructors
-
-<a id="sdk-constructor"></a>
 
 #### Constructor
 
@@ -121,11 +118,9 @@ new APIError(
 
 ##### Overrides
 
-[`TypeSafeError`](#class-typesafeerror).[`constructor`](#class-typesafeerror)
+[`TypeSafeError`](https://docs.typesafe.ai/sdk/javascript/api/classes/TypeSafeError).[`constructor`](https://docs.typesafe.ai/sdk/javascript/api/classes/TypeSafeError#sdk-constructor)
 
 ### Properties
-
-<a id="sdk-body"></a>
 
 #### body
 
@@ -137,8 +132,6 @@ Parsed JSON, response text, or `undefined` for an empty body.
 
 ***
 
-<a id="sdk-headers"></a>
-
 #### headers
 
 ```ts
@@ -148,8 +141,6 @@ readonly headers: Headers;
 HTTP response headers.
 
 ***
-
-<a id="sdk-requestid"></a>
 
 #### requestId
 
@@ -161,8 +152,6 @@ Request ID from `x-typesafe-request-id`, or `undefined` when absent.
 
 ***
 
-<a id="sdk-status"></a>
-
 #### status
 
 ```ts
@@ -172,8 +161,6 @@ readonly status: number;
 HTTP response status code.
 
 ### Methods
-
-<a id="sdk-fromresponse"></a>
 
 #### fromResponse()
 
@@ -228,8 +215,6 @@ Non-2xx responses reject with an `APIError`, including through `asResponse()`.
 
 ### Constructors
 
-<a id="sdk-constructor"></a>
-
 #### Constructor
 
 ```ts
@@ -258,8 +243,6 @@ Promise<T>.constructor
 
 ### Methods
 
-<a id="sdk-asresponse"></a>
-
 #### asResponse()
 
 ```ts
@@ -275,8 +258,6 @@ The caller owns the body; don't also `await` the parsed result on the same promi
 `Promise`\<`Response`>
 
 ***
-
-<a id="sdk-catch"></a>
 
 #### catch()
 
@@ -314,8 +295,6 @@ Promise.catch
 
 ***
 
-<a id="sdk-finally"></a>
-
 #### finally()
 
 ```ts
@@ -347,8 +326,6 @@ Promise.finally
 
 ***
 
-<a id="sdk-map"></a>
-
 #### map()
 
 ```ts
@@ -374,8 +351,6 @@ Transform the parsed result, sharing the HTTP response and a single body parse.
 `APIPromise`\<`U`>
 
 ***
-
-<a id="sdk-then"></a>
 
 #### then()
 
@@ -423,8 +398,6 @@ Promise.then
 
 ***
 
-<a id="sdk-withresponse"></a>
-
 #### withResponse()
 
 ```ts
@@ -435,7 +408,7 @@ Return the parsed result, HTTP response, and request ID.
 
 ##### Returns
 
-`Promise`\<[`WithResponse`](interfaces.md#interface-withresponset)\<`T`>>
+`Promise`\<[`WithResponse`](https://docs.typesafe.ai/sdk/javascript/api/interfaces/WithResponse)\<`T`>>
 
 
 
@@ -447,11 +420,9 @@ The full response did not arrive within the timeout. A kind of `APIConnectionErr
 
 ### Extends
 
-* [`APIConnectionError`](#class-apiconnectionerror)
+* [`APIConnectionError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIConnectionError)
 
 ### Constructors
-
-<a id="sdk-constructor"></a>
 
 #### Constructor
 
@@ -475,11 +446,9 @@ new APITimeoutError(timeoutMs, options?): APITimeoutError;
 
 ##### Overrides
 
-[`APIConnectionError`](#class-apiconnectionerror).[`constructor`](#class-apiconnectionerror)
+[`APIConnectionError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIConnectionError).[`constructor`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIConnectionError#sdk-constructor)
 
 ### Properties
-
-<a id="sdk-timeoutms"></a>
 
 #### timeoutMs
 
@@ -499,11 +468,9 @@ The caller cancelled the request through an `AbortSignal`.
 
 ### Extends
 
-* [`TypeSafeError`](#class-typesafeerror)
+* [`TypeSafeError`](https://docs.typesafe.ai/sdk/javascript/api/classes/TypeSafeError)
 
 ### Constructors
-
-<a id="sdk-constructor"></a>
 
 #### Constructor
 
@@ -527,7 +494,7 @@ new APIUserAbortError(message?, options?): APIUserAbortError;
 
 ##### Overrides
 
-[`TypeSafeError`](#class-typesafeerror).[`constructor`](#class-typesafeerror)
+[`TypeSafeError`](https://docs.typesafe.ai/sdk/javascript/api/classes/TypeSafeError).[`constructor`](https://docs.typesafe.ai/sdk/javascript/api/classes/TypeSafeError#sdk-constructor)
 
 
 
@@ -539,11 +506,9 @@ HTTP 401: authentication failed.
 
 ### Extends
 
-* [`APIError`](#class-apierror)
+* [`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
 
 ### Constructors
-
-<a id="sdk-constructor"></a>
 
 #### Constructor
 
@@ -580,11 +545,9 @@ new AuthenticationError(
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`constructor`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`constructor`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-constructor)
 
 ### Properties
-
-<a id="sdk-body"></a>
 
 #### body
 
@@ -596,11 +559,9 @@ Parsed JSON, response text, or `undefined` for an empty body.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`body`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`body`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-body)
 
 ***
-
-<a id="sdk-headers"></a>
 
 #### headers
 
@@ -612,11 +573,9 @@ HTTP response headers.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`headers`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`headers`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-headers)
 
 ***
-
-<a id="sdk-requestid"></a>
 
 #### requestId
 
@@ -628,11 +587,9 @@ Request ID from `x-typesafe-request-id`, or `undefined` when absent.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`requestId`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`requestId`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-requestid)
 
 ***
-
-<a id="sdk-status"></a>
 
 #### status
 
@@ -644,11 +601,9 @@ HTTP response status code.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`status`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`status`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-status)
 
 ### Methods
-
-<a id="sdk-fromresponse"></a>
 
 #### fromResponse()
 
@@ -678,11 +633,11 @@ Create the error subclass for an HTTP status code.
 
 ##### Returns
 
-[`APIError`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`fromResponse`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`fromResponse`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-fromresponse)
 
 
 
@@ -694,11 +649,9 @@ HTTP 400: the request is invalid.
 
 ### Extends
 
-* [`APIError`](#class-apierror)
+* [`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
 
 ### Constructors
-
-<a id="sdk-constructor"></a>
 
 #### Constructor
 
@@ -735,11 +688,9 @@ new BadRequestError(
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`constructor`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`constructor`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-constructor)
 
 ### Properties
-
-<a id="sdk-body"></a>
 
 #### body
 
@@ -751,11 +702,9 @@ Parsed JSON, response text, or `undefined` for an empty body.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`body`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`body`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-body)
 
 ***
-
-<a id="sdk-headers"></a>
 
 #### headers
 
@@ -767,11 +716,9 @@ HTTP response headers.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`headers`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`headers`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-headers)
 
 ***
-
-<a id="sdk-requestid"></a>
 
 #### requestId
 
@@ -783,11 +730,9 @@ Request ID from `x-typesafe-request-id`, or `undefined` when absent.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`requestId`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`requestId`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-requestid)
 
 ***
-
-<a id="sdk-status"></a>
 
 #### status
 
@@ -799,11 +744,9 @@ HTTP response status code.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`status`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`status`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-status)
 
 ### Methods
-
-<a id="sdk-fromresponse"></a>
 
 #### fromResponse()
 
@@ -833,11 +776,119 @@ Create the error subclass for an HTTP status code.
 
 ##### Returns
 
-[`APIError`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`fromResponse`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`fromResponse`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-fromresponse)
+
+
+
+---
+
+## Class: Image
+
+A PNG or JPEG image asset, created by `image` or `Image.fromBase64`.
+
+### Constructors
+
+#### Constructor
+
+```ts
+new Image(data): Image;
+```
+
+##### Parameters
+
+###### data
+
+`ArrayBuffer` | `ArrayBufferView`\<`ArrayBufferLike`> | `Blob`
+
+##### Returns
+
+`Image`
+
+##### Throws
+
+`data` is empty or isn't file bytes or a `Blob`.
+
+### Properties
+
+#### data
+
+```ts
+readonly data: Uint8Array<ArrayBufferLike> | Blob;
+```
+
+The image file bytes, or a `Blob` read when the request is sent.
+
+***
+
+#### type
+
+```ts
+readonly type: "image" = "image";
+```
+
+### Methods
+
+#### toJSON()
+
+```ts
+toJSON(): string;
+```
+
+The reference, written by `JSON.stringify` wherever the image appears in a request.
+
+##### Returns
+
+`string`
+
+***
+
+#### toString()
+
+```ts
+toString(): string;
+```
+
+The unique reference this image is sent under, for referencing it inside text.
+
+##### Returns
+
+`string`
+
+***
+
+#### fromBase64()
+
+```ts
+static fromBase64(text): Image;
+```
+
+Create an image from base64-encoded file bytes, decoding them now.
+
+##### Parameters
+
+###### text
+
+`string`
+
+The image file bytes, base64-encoded, without a `data:` URL prefix.
+
+##### Returns
+
+`Image`
+
+##### Throws
+
+`text` isn't valid base64 or decodes to no bytes.
+
+##### Example
+
+```ts
+const photo = Image.fromBase64(upload.photoBase64);
+```
 
 
 
@@ -849,11 +900,9 @@ HTTP 5xx: the server failed to handle the request.
 
 ### Extends
 
-* [`APIError`](#class-apierror)
+* [`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
 
 ### Constructors
-
-<a id="sdk-constructor"></a>
 
 #### Constructor
 
@@ -890,11 +939,9 @@ new InternalServerError(
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`constructor`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`constructor`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-constructor)
 
 ### Properties
-
-<a id="sdk-body"></a>
 
 #### body
 
@@ -906,11 +953,9 @@ Parsed JSON, response text, or `undefined` for an empty body.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`body`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`body`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-body)
 
 ***
-
-<a id="sdk-headers"></a>
 
 #### headers
 
@@ -922,11 +967,9 @@ HTTP response headers.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`headers`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`headers`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-headers)
 
 ***
-
-<a id="sdk-requestid"></a>
 
 #### requestId
 
@@ -938,11 +981,9 @@ Request ID from `x-typesafe-request-id`, or `undefined` when absent.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`requestId`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`requestId`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-requestid)
 
 ***
-
-<a id="sdk-status"></a>
 
 #### status
 
@@ -954,11 +995,9 @@ HTTP response status code.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`status`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`status`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-status)
 
 ### Methods
-
-<a id="sdk-fromresponse"></a>
 
 #### fromResponse()
 
@@ -988,11 +1027,11 @@ Create the error subclass for an HTTP status code.
 
 ##### Returns
 
-[`APIError`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`fromResponse`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`fromResponse`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-fromresponse)
 
 
 
@@ -1004,11 +1043,9 @@ HTTP 404: the resource was not found.
 
 ### Extends
 
-* [`APIError`](#class-apierror)
+* [`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
 
 ### Constructors
-
-<a id="sdk-constructor"></a>
 
 #### Constructor
 
@@ -1045,11 +1082,9 @@ new NotFoundError(
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`constructor`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`constructor`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-constructor)
 
 ### Properties
-
-<a id="sdk-body"></a>
 
 #### body
 
@@ -1061,11 +1096,9 @@ Parsed JSON, response text, or `undefined` for an empty body.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`body`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`body`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-body)
 
 ***
-
-<a id="sdk-headers"></a>
 
 #### headers
 
@@ -1077,11 +1110,9 @@ HTTP response headers.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`headers`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`headers`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-headers)
 
 ***
-
-<a id="sdk-requestid"></a>
 
 #### requestId
 
@@ -1093,11 +1124,9 @@ Request ID from `x-typesafe-request-id`, or `undefined` when absent.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`requestId`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`requestId`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-requestid)
 
 ***
-
-<a id="sdk-status"></a>
 
 #### status
 
@@ -1109,11 +1138,9 @@ HTTP response status code.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`status`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`status`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-status)
 
 ### Methods
-
-<a id="sdk-fromresponse"></a>
 
 #### fromResponse()
 
@@ -1143,11 +1170,11 @@ Create the error subclass for an HTTP status code.
 
 ##### Returns
 
-[`APIError`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`fromResponse`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`fromResponse`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-fromresponse)
 
 
 
@@ -1159,11 +1186,9 @@ HTTP 403: access is denied.
 
 ### Extends
 
-* [`APIError`](#class-apierror)
+* [`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
 
 ### Constructors
-
-<a id="sdk-constructor"></a>
 
 #### Constructor
 
@@ -1200,11 +1225,9 @@ new PermissionDeniedError(
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`constructor`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`constructor`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-constructor)
 
 ### Properties
-
-<a id="sdk-body"></a>
 
 #### body
 
@@ -1216,11 +1239,9 @@ Parsed JSON, response text, or `undefined` for an empty body.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`body`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`body`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-body)
 
 ***
-
-<a id="sdk-headers"></a>
 
 #### headers
 
@@ -1232,11 +1253,9 @@ HTTP response headers.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`headers`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`headers`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-headers)
 
 ***
-
-<a id="sdk-requestid"></a>
 
 #### requestId
 
@@ -1248,11 +1267,9 @@ Request ID from `x-typesafe-request-id`, or `undefined` when absent.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`requestId`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`requestId`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-requestid)
 
 ***
-
-<a id="sdk-status"></a>
 
 #### status
 
@@ -1264,11 +1281,9 @@ HTTP response status code.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`status`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`status`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-status)
 
 ### Methods
-
-<a id="sdk-fromresponse"></a>
 
 #### fromResponse()
 
@@ -1298,11 +1313,11 @@ Create the error subclass for an HTTP status code.
 
 ##### Returns
 
-[`APIError`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`fromResponse`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`fromResponse`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-fromresponse)
 
 
 
@@ -1314,11 +1329,9 @@ HTTP 429: the rate limit was exceeded.
 
 ### Extends
 
-* [`APIError`](#class-apierror)
+* [`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
 
 ### Constructors
-
-<a id="sdk-constructor"></a>
 
 #### Constructor
 
@@ -1355,11 +1368,9 @@ new RateLimitError(
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`constructor`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`constructor`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-constructor)
 
 ### Properties
-
-<a id="sdk-body"></a>
 
 #### body
 
@@ -1371,11 +1382,9 @@ Parsed JSON, response text, or `undefined` for an empty body.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`body`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`body`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-body)
 
 ***
-
-<a id="sdk-headers"></a>
 
 #### headers
 
@@ -1387,11 +1396,9 @@ HTTP response headers.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`headers`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`headers`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-headers)
 
 ***
-
-<a id="sdk-requestid"></a>
 
 #### requestId
 
@@ -1403,11 +1410,9 @@ Request ID from `x-typesafe-request-id`, or `undefined` when absent.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`requestId`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`requestId`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-requestid)
 
 ***
-
-<a id="sdk-retryafterms"></a>
 
 #### retryAfterMs
 
@@ -1419,8 +1424,6 @@ Server retry delay in milliseconds, or `undefined` when absent or invalid.
 
 ***
 
-<a id="sdk-status"></a>
-
 #### status
 
 ```ts
@@ -1431,11 +1434,9 @@ HTTP response status code.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`status`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`status`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-status)
 
 ### Methods
-
-<a id="sdk-fromresponse"></a>
 
 #### fromResponse()
 
@@ -1465,11 +1466,11 @@ Create the error subclass for an HTTP status code.
 
 ##### Returns
 
-[`APIError`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`fromResponse`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`fromResponse`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-fromresponse)
 
 
 
@@ -1480,8 +1481,6 @@ Create the error subclass for an HTTP status code.
 Client for the TypeSafe AI API.
 
 ### Constructors
-
-<a id="sdk-constructor"></a>
 
 #### Constructor
 
@@ -1498,7 +1497,7 @@ Empty or whitespace-only environment values are ignored.
 
 ###### config?
 
-[`TypeSafeClientConfig`](interfaces.md#interface-typesafeclientconfig) = `{}`
+[`TypeSafeClientConfig`](https://docs.typesafe.ai/sdk/javascript/api/interfaces/TypeSafeClientConfig) = `{}`
 
 ##### Returns
 
@@ -1506,11 +1505,10 @@ Empty or whitespace-only environment values are ignored.
 
 ##### Throws
 
-The API key is missing, configuration is invalid, or the runtime is unsupported.
+The API key is missing, configuration is invalid, the runtime is
+unsupported, or the runtime lacks the requested compression.
 
 ### Properties
-
-<a id="sdk-baseurl"></a>
 
 #### baseURL
 
@@ -1522,7 +1520,15 @@ API root with trailing slashes removed.
 
 ***
 
-<a id="sdk-defaultheaders"></a>
+#### compression
+
+```ts
+readonly compression: Compression;
+```
+
+Request body compression, or `false` when bodies are sent uncompressed.
+
+***
 
 #### defaultHeaders
 
@@ -1534,8 +1540,6 @@ Additional headers sent with each request.
 
 ***
 
-<a id="sdk-defaultmodel"></a>
-
 #### defaultModel
 
 ```ts
@@ -1545,8 +1549,6 @@ readonly defaultModel: string;
 Model used when a request omits `model`.
 
 ***
-
-<a id="sdk-fetch"></a>
 
 #### fetch
 
@@ -1558,8 +1560,6 @@ HTTP fetch implementation.
 
 ***
 
-<a id="sdk-logger"></a>
-
 #### logger
 
 ```ts
@@ -1569,8 +1569,6 @@ readonly logger: Logger;
 The configured logger, filtered to `logLevel`.
 
 ***
-
-<a id="sdk-loglevel"></a>
 
 #### logLevel
 
@@ -1582,8 +1580,6 @@ Configured log verbosity.
 
 ***
 
-<a id="sdk-models"></a>
-
 #### models
 
 ```ts
@@ -1593,8 +1589,6 @@ readonly models: Models;
 The models available to the account.
 
 ***
-
-<a id="sdk-retry"></a>
 
 #### retry
 
@@ -1606,8 +1600,6 @@ Retry settings with constructor overrides applied.
 
 ***
 
-<a id="sdk-timeout"></a>
-
 #### timeout
 
 ```ts
@@ -1618,45 +1610,49 @@ Timeout per attempt in milliseconds.
 
 ### Methods
 
-<a id="sdk-systemone"></a>
-
 #### systemOne()
 
 ```ts
 systemOne<Q>(request, options?): APIPromise<SystemOneResult<Q>>;
 ```
 
-Answer named questions about text or structured state.
+Answer named questions about text, structured state, or assets.
 
 ##### Type Parameters
 
 ###### Q
 
-`Q` *extends* [`Questions`](interfaces.md#interface-questions)
+`Q` *extends* [`Questions`](https://docs.typesafe.ai/sdk/javascript/api/interfaces/Questions)
 
 ##### Parameters
 
 ###### request
 
-[`SystemOneRequest`](interfaces.md#interface-systemonerequestq)\<`Q`>
+[`SystemOneRequest`](https://docs.typesafe.ai/sdk/javascript/api/interfaces/SystemOneRequest)\<`Q`>
 
-State, questions, and an optional model override.
+State, questions, an optional model override, and optional assets.
+Assets in `state`, question content, or `withAssets` text are sent under their references.
 
 ###### options?
 
-[`RequestOptions`](interfaces.md#interface-requestoptions) = `{}`
+[`RequestOptions`](https://docs.typesafe.ai/sdk/javascript/api/interfaces/RequestOptions) = `{}`
 
 Per-call timeout, retry, headers, and cancellation settings.
 
 ##### Returns
 
-[`APIPromise`](#class-apipromiset)\<[`SystemOneResult`](interfaces.md#interface-systemoneresultq)\<`Q`>>
+[`APIPromise`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIPromise)\<[`SystemOneResult`](https://docs.typesafe.ai/sdk/javascript/api/interfaces/SystemOneResult)\<`Q`>>
 
-Answers typed by question name and criteria, with model and token usage.
+Answers typed by question name and criteria, with model and token usage. Every
+failure below rejects the returned promise; the call itself doesn't throw.
 
 ##### Throws
 
-Questions are empty, or score criteria are not a list of at least two entries.
+State is `null` or omitted, questions are empty, score criteria are not
+a list of at least two entries, choice criteria are not a nonempty map, a noul question has
+neither instructions nor a described outcome, a string holds the reference of an asset not
+attached to the request, a name in `assets` doesn't appear in the request, or a `Blob`
+asset can't be read.
 
 ##### Throws
 
@@ -1694,13 +1690,11 @@ Base class for SDK errors.
 
 ### Extended by
 
-* [`APIConnectionError`](#class-apiconnectionerror)
-* [`APIError`](#class-apierror)
-* [`APIUserAbortError`](#class-apiuseraborterror)
+* [`APIConnectionError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIConnectionError)
+* [`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
+* [`APIUserAbortError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIUserAbortError)
 
 ### Constructors
-
-<a id="sdk-constructor"></a>
 
 #### Constructor
 
@@ -1738,11 +1732,9 @@ HTTP 422: request validation failed.
 
 ### Extends
 
-* [`APIError`](#class-apierror)
+* [`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
 
 ### Constructors
-
-<a id="sdk-constructor"></a>
 
 #### Constructor
 
@@ -1779,11 +1771,9 @@ new UnprocessableEntityError(
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`constructor`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`constructor`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-constructor)
 
 ### Properties
-
-<a id="sdk-body"></a>
 
 #### body
 
@@ -1795,11 +1785,9 @@ Parsed JSON, response text, or `undefined` for an empty body.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`body`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`body`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-body)
 
 ***
-
-<a id="sdk-headers"></a>
 
 #### headers
 
@@ -1811,11 +1799,9 @@ HTTP response headers.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`headers`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`headers`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-headers)
 
 ***
-
-<a id="sdk-requestid"></a>
 
 #### requestId
 
@@ -1827,11 +1813,9 @@ Request ID from `x-typesafe-request-id`, or `undefined` when absent.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`requestId`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`requestId`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-requestid)
 
 ***
-
-<a id="sdk-status"></a>
 
 #### status
 
@@ -1843,11 +1827,9 @@ HTTP response status code.
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`status`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`status`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-status)
 
 ### Methods
-
-<a id="sdk-fromresponse"></a>
 
 #### fromResponse()
 
@@ -1877,8 +1859,8 @@ Create the error subclass for an HTTP status code.
 
 ##### Returns
 
-[`APIError`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError)
 
 ##### Inherited from
 
-[`APIError`](#class-apierror).[`fromResponse`](#class-apierror)
+[`APIError`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError).[`fromResponse`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError#sdk-fromresponse)

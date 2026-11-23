@@ -31,7 +31,7 @@ flowchart LR
         q["Choice &mdash; how does the<br/>section relate to the claim?<br/>supports &rarr; mark <b>verified</b><br/>contradicts &rarr; mark <b>contradicted</b><br/>says nothing &rarr; mark <b>unsupported</b>"]
     end
 
-    gate{"confidence<br/>&ge; 0.8?"}
+    check{"confidence<br/>&ge; 0.8?"}
     stand["let the verdict stand"]
     review["a human confirms it"]
 
@@ -41,15 +41,15 @@ flowchart LR
     match -- "found" --> request
     match -- "no quote" --> request
     match -- "not found" --> fab
-    request --> gate
-    gate --> stand
-    gate --> review
+    request --> check
+    check --> stand
+    check --> review
 ```
 
 Below, eight citations from an LLM's answer about RFC 7519 (JSON Web Token) go through the
-check. The four accurate ones came back `verified` at confidence 0.93 or higher. All four
+check. The four accurate ones came back `verified` at confidence 0.98 or higher. All four
 planted failures were caught: a fabricated quote, a contradicted claim, and two unsupported
-citations sent to a human.
+citations, one of them sent to a human.
 
 `check_citation()`, the function you build here, takes a source document and one citation
 and returns one of four verdicts: `verified`, `unsupported`, `contradicted`, or
@@ -57,20 +57,34 @@ and returns one of four verdicts: `verified`, `unsupported`, `contradicted`, or
 
 ## Setup
 
+> [card] [Run in Colab](https://colab.research.google.com/github/typesafe-ai/typesafe-public-examples/blob/main/cookbooks/citation_check/citation_check.ipynb)
+>
+> Runs as published without an API key.
+
+> [card] [Python file](https://github.com/typesafe-ai/typesafe-public-examples/blob/main/cookbooks/citation_check/citation_check.py)
+>
+> This page as one .py file, to run locally.
+
+> [card] [Open in playground](https://console.typesafe.ai/playground#share/N4IgJg9gxgrgtgUwHYBcAqCAeKQC4AEIwAOiFADYCGAlnKQaQKIBuCATgJ74BSA6mvjgwAzinzUkFGGAT5KSfFgAO1NpRTUICjYgDcc-CggBrZPgDu1FAAsIMMcUchlj0uOH4kEMc0rlqYAB0pAA0+KTCCFAaWvThIAAsgQCMgUn44U4uTvgAFIyYKmoxCmi0CACU+ADCVLSOSA0Z+GjWsq7OhR15yqrqmtrlVRQ0cOIyqNQAZtQIHjayvcUDhuX4scQKGRBsclMo7BbW1FDWhm08-PgAsgCqAMoCAHIA8gIARrKUUFAISgdgfBTHb4JRsaBzYQSADmgQyrQQTQyYIhwihSGh6ym53aWS6ORGtHwbAQAEcYKo5ud1Dj8LA2CTUPgwOoEAB6HSIzbNO6PfCffkIYEk2lLfpaZmsjlrfyiBCAiS0jrZNyEuDBTZI-AASTgSnICEQqHYHmuAEEAJqg8HMAKyYX4YQQRCOuB+cj4A0IcyUDhhEQwd1cLyCHayGzyLWUIHewQSexzMJGOQ-OxMh0UaDGR2mcxwnUoDy+cgwWS8j5fTzwT5sLVQLQoGhIGEGJ7wdgnAAirPwxdL+dukSx52oHjV7nwLwACmhtS8nmaADLBEAAXxAYRAKL1hYw2DwhBIIBJVBKcSPKA4SkRB9IpwgJxvYVIElEbBg0QGwjipAAEhBzGZCAqQWR0ohKYkEFPcMIFpNUAH5QniKA2CsDtKHPCIYCUJQdkLH8QARMDPwlURWXmC5xxBMBKWicguFofVZgomkrAnFB3yfZCGzUGjom-W9CIuSISIUMiDgo2QIBwiAoQOYdQKo3ZGP8Kk2NHIE-EiJCIl9YQAH0vBsGECKIkSIMgKkjLkMAwBJNEjhpRS6jGSg0XYQswgQKw2l2H0OFIVcgo3QhKBUAA1E0BgPEBmGSNcgA)
+>
+> Edit one request and run it live. Needs a TypeSafe account.
+
+To run it on your own machine instead:
+
 ```bash
-pip install ipython 'cooksafe>=0.2.0,<0.3.0'
+pip install ipython 'cooksafe>=0.3.0,<0.4.0'
 ```
 
-then set `TYPESAFE_API_KEY`. Every API call is cached in `json_cache.json`, which ships
-with the cookbook, so re-running replays the published numbers instead of calling the
-API. Delete that file to run everything live.
+The code replays saved answers, so it runs as published without an API key. To change a
+request, set `TYPESAFE_API_KEY`; in Colab, add it in the Secrets panel.
 
-Numbers below came from `jev-1.12` on 2026-08-16.
+Numbers below came from `jev-1.14.0` on 2026-11-03.
 
 ```python
 import json
 import os
 import re
+import urllib.request
 from pathlib import Path
 from time import perf_counter
 
@@ -78,15 +92,48 @@ from cooksafe import JsonCache, make_playground_link
 from IPython.display import Markdown, display
 from typesafe_sdk import Choice, TypeSafeClient
 
-TYPESAFE_MODEL = "jev-1.12"
+TYPESAFE_MODEL = "jev-1.14.0"  # the page's model; "jev-latest" runs the newest, live
 AUTO_ACCEPT = 0.8  # start high for more human review as you build trust in the model
+
+# The keys this cookbook uses. In Colab, keys saved in the Secrets panel are copied in here.
+KEYS = ["TYPESAFE_API_KEY"]
+try:
+    from google.colab import userdata
+except ImportError:  # not in Colab
+    userdata = None
+for key in KEYS:
+    if userdata is not None and key not in os.environ:
+        try:
+            os.environ[key] = userdata.get(key)
+        except (userdata.SecretNotFoundError, userdata.NotebookAccessError):
+            pass  # not saved, or this notebook may not read it
 
 client = TypeSafeClient(
     api_key=os.environ.get("TYPESAFE_API_KEY", "cache-only"),
     base_url=os.environ.get("TYPESAFE_ENDPOINT"),
     timeout=120.0,
 )
-json_cache = JsonCache(Path("json_cache.json"))
+
+EXAMPLES = (
+    "https://raw.githubusercontent.com/typesafe-ai/typesafe-public-examples/main/"
+    "cookbooks/citation_check"
+)
+
+def download(name: str) -> Path:
+    """Fetch one of this cookbook's files from typesafe-public-examples unless it is on disk."""
+    path = Path(name)
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        urllib.request.urlretrieve(f"{EXAMPLES}/{name}", path)
+    return path
+
+CACHE = Path("citation_check_cache.json")
+# True fills CACHE with the published answers, so the run makes no requests. To run
+# live, set it to False and delete CACHE; a CACHE already on disk is never overwritten.
+DOWNLOAD_CACHE = True
+if DOWNLOAD_CACHE:
+    download(CACHE.name)
+json_cache = JsonCache(CACHE)
 ```
 
 ## Load the source and the citations
@@ -102,7 +149,7 @@ accurate; we edited the other four to fail the check.
 def load_source() -> str:
     """RFC 7519 verbatim, minus the page headers and footers that interrupt its paragraphs."""
     lines = []
-    for line in Path("rfc7519.txt").read_text().splitlines():
+    for line in download("rfc7519.txt").read_text().splitlines():
         bare = line.lstrip("\f")
         if re.match(r"Jones, et al\.\s.*\[Page \d+\]$", bare):
             continue
@@ -124,7 +171,7 @@ def split_sections(source: str) -> dict[str, str]:
 
 SOURCE = load_source()
 SECTIONS = split_sections(SOURCE)
-CITATIONS = json.loads(Path("citations.json").read_text())
+CITATIONS = json.loads(download("citations.json").read_text())
 
 print(f"{len(SOURCE):,} characters, {len(SECTIONS)} numbered sections, {len(CITATIONS)} citations")
 print("\nA citation with a quote:")
@@ -238,12 +285,12 @@ RELATION_TO_VERDICT = {
 }
 
 @json_cache
-def ask(claim: str, section: str) -> dict:
+def ask(claim: str, section: str, relation: Choice, model: str) -> dict:
     started = perf_counter()
     response = client.system_one(
         state={"claim": claim, "section": section},
-        questions=QUESTIONS,
-        model=TYPESAFE_MODEL,
+        questions={"relation": relation},
+        model=model,
     )
     answer = response.answers["relation"]
     return {
@@ -268,7 +315,11 @@ def verdict(status: str, answer: dict | None) -> dict:
 
 def check_citation(sections: dict[str, str], citation: dict) -> dict:
     status, section = locate(sections, citation)
-    answer = ask(citation["claim"], section) if section is not None else None
+    answer = (
+        ask(citation["claim"], section, QUESTIONS["relation"], model=TYPESAFE_MODEL)
+        if section is not None
+        else None
+    )
     return {"id": citation["id"], "status": status, "answer": answer, **verdict(status, answer)}
 ```
 
@@ -292,29 +343,30 @@ for citation in CITATIONS:
 
 ```
 citation          quote         relation        conf  verdict       action
-epoch_seconds     found         supports        0.93  verified        auto
-aud_reject        found         supports        0.95  verified        auto
+epoch_seconds     found         supports        0.98  verified        auto
+aud_reject        found         supports        0.98  verified        auto
 sig_reporting     missing       -                  -  fabricated      auto
-clock_skew        found         supports        0.99  verified        auto
-exp_required      found         contradicts     0.99  contradicted    auto
-pii_encryption    found         says_nothing    0.27  unsupported   review
-iat_future        section-only  says_nothing    0.56  unsupported   review
-duplicate_names   found         supports        0.99  verified        auto
+clock_skew        found         supports        1.00  verified        auto
+exp_required      found         contradicts     1.00  contradicted    auto
+pii_encryption    found         says_nothing    0.56  unsupported   review
+iat_future        section-only  says_nothing    0.97  unsupported     auto
+duplicate_names   found         supports        1.00  verified        auto
 ```
 
 Four citations came back `verified`, one `fabricated`, one `contradicted`, and two
 `unsupported`.
 
 * `epoch_seconds`, `aud_reject`, `clock_skew`, and `duplicate_names` are the accurate four.
-  All of them came back `verified` at confidence 0.93 or higher, well above `AUTO_ACCEPT`.
+  All of them came back `verified` at confidence 0.98 or higher, well above `AUTO_ACCEPT`.
 * `sig_reporting` never reached the model. Its quote is not in the RFC, so the string
   match alone marks it `fabricated`.
 * `exp_required` quotes section 4.1.4 word for word, and the same section says "Use of
-  this claim is OPTIONAL", so it is `contradicted`, at confidence 0.99.
-* `pii_encryption` and `iat_future` came back `unsupported` at 0.27 and 0.56, both under
-  the threshold, so both went to a human. `pii_encryption` shows why the string match is
-  not enough on its own: its quote is in the source word for word, and the section it
-  came from says nothing about the claim.
+  this claim is OPTIONAL", so it is `contradicted`, at confidence 1.00.
+* `pii_encryption` and `iat_future` came back `unsupported`. `iat_future` scored 0.97,
+  above the threshold, so it was settled without a human. `pii_encryption` scored 0.56,
+  under the threshold, so it went to a human. It shows why the string match is not enough
+  on its own: its quote is in the source word for word, and the section it came from says
+  nothing about the claim.
 
 To point this at your own data, replace `rfc7519.txt` and `citations.json`.
 `load_source()` and `split_sections()` are written for an RFC's layout, so a document of
@@ -333,9 +385,9 @@ call live in the browser.
 example = next(c for c in CITATIONS if c["id"] == "exp_required")
 _, example_section = locate(SECTIONS, example)
 playground_link = make_playground_link(
-    {"claim": example["claim"], "section": example_section}, QUESTIONS, models=[TYPESAFE_MODEL]
+    {"claim": example["claim"], "section": example_section}, QUESTIONS
 )
-display(Markdown(f"🔗 [Open one citation's claim + section in the TypeSafe playground]({playground_link})"))
+display(Markdown(f"🔗 [Open in the TypeSafe playground]({playground_link})"))
 ```
 
-<a href="https://console.typesafe.ai/playground#share/N4IgJg9gxgrgtgUwHYBcAqCAeKQC4AEIwAOiFADYCGAlnKQaQKIBuCATgJ74BSA6mvjgwAzinzUkFGGAT5KSfFgAO1NpRTUICjYgDcc-CggBrZPgDu1FAAsIMMcUchlj0uOH4kEMc0rlqYAB0pAA0+KTCCFAaWvThIAAsgQCMgUn44U4uTvgAFIyYKmoxCmi0CACU+ADCVLSOSA0Z+GjWsq7OhR15yqrqmtrlVRQ0cOIyqNQAZtQIHjayvcUDhuX4scQKGRBsclMo7BbW1FDWhm08-PgAsgCqAMoCAHIA8gIARrKUUFAISgdgfBTHb4JRsaBzYQSADmgQyrQQTQyYIhwihSGh6ym53aWS6ORGtHwbAQAEcYKo5ud1Dj8LA2CTUPgwOoEAB6HSIzbNO6PfCffkIYEk2lLfpaZmsjlrfyiBCAiS0jrZNyEuDBTZI-AASTgSnICEQqHYHmuAEEAJqg8HMAKyYX4YQQRCOuB+cj4A0IcyUDhhEQwd1cLyCHayGzyLWUIHewQSexzMJGOQ-OxMh0UaDGR2mcxwnUoDy+cgwWS8j5fTzwT5sLVQLQoGhIGEGJ7wdgnAAirPwxdL+dukSx52oHjV7nwLwACmhtS8nmaADLBEAAXxAYRAKL1hYw2DwhBIIBJVBKcSPKA4SkRB9IpwgJxvYVIElEbBg0QGwjipAAEhBzGZCAqQWR0ohKYkEFPcMIFpNUAH5QniKA2CsDtKHPCIYCUJQdkLH8QARMDPwlURWXmC5xxBMBKWicguFofVZgomkrAnFB3yfZCGzUGjom-W9CIuSISIUMiDgo2QIBwiAoQOYdQKo3ZGP8Kk2NHIE-EiJCIl9YQAH0vBsGECKIkSIMgKkjLkMAwBJNEjhpRS6jGSg0XYQswgQKw2l2H0OFIVcgo3QhKBUAA1E0BgPEBmGSEKQEiA1onla4IBkchhAPABtEAACsEGYABaVJkgAJhAABdVcgA" target="_blank" rel="noreferrer" className="text-primary">Open one citation's claim + section in the TypeSafe playground →</a>
+[Open in the TypeSafe playground →](https://console.typesafe.ai/playground#share/N4IgJg9gxgrgtgUwHYBcAqCAeKQC4AEIwAOiFADYCGAlnKQaQKIBuCATgJ74BSA6mvjgwAzinzUkFGGAT5KSfFgAO1NpRTUICjYgDcc-CggBrZPgDu1FAAsIMMcUchlj0uOH4kEMc0rlqYAB0pAA0+KTCCFAaWvThIAAsgQCMgUn44U4uTvgAFIyYKmoxCmi0CACU+ADCVLSOSA0Z+GjWsq7OhR15yqrqmtrlVRQ0cOIyqNQAZtQIHjayvcUDhuX4scQKGRBsclMo7BbW1FDWhm08-PgAsgCqAMoCAHIA8gIARrKUUFAISgdgfBTHb4JRsaBzYQSADmgQyrQQTQyYIhwihSGh6ym53aWS6ORGtHwbAQAEcYKo5ud1Dj8LA2CTUPgwOoEAB6HSIzbNO6PfCffkIYEk2lLfpaZmsjlrfyiBCAiS0jrZNyEuDBTZI-AASTgSnICEQqHYHmuAEEAJqg8HMAKyYX4YQQRCOuB+cj4A0IcyUDhhEQwd1cLyCHayGzyLWUIHewQSexzMJGOQ-OxMh0UaDGR2mcxwnUoDy+cgwWS8j5fTzwT5sLVQLQoGhIGEGJ7wdgnAAirPwxdL+dukSx52oHjV7nwLwACmhtS8nmaADLBEAAXxAYRAKL1hYw2DwhBIIBJVBKcSPKA4SkRB9IpwgJxvYVIElEbBg0QGwjipAAEhBzGZCAqQWR0ohKYkEFPcMIFpNUAH5QniKA2CsDtKHPCIYCUJQdkLH8QARMDPwlURWXmC5xxBMBKWicguFofVZgomkrAnFB3yfZCGzUGjom-W9CIuSISIUMiDgo2QIBwiAoQOYdQKo3ZGP8Kk2NHIE-EiJCIl9YQAH0vBsGECKIkSIMgKkjLkMAwBJNEjhpRS6jGSg0XYQswgQKw2l2H0OFIVcgo3QhKBUAA1E0BgPEBmGSNcgA)

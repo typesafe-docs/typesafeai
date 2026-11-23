@@ -3,42 +3,68 @@
 [← Cookbooks](../08-cookbooks.md) · [README](../../README.md) · Official: <https://docs.typesafe.ai/cookbooks/date_extraction_cookbook>
 
 
-> Extracts absolute and relative dates by asking TypeSafe for the parts named in a document, then resolving and validating them in code with confidence-based review.
+> Extracts absolute and relative dates by asking Jev for the parts named in a document, then resolving and validating them in code with confidence-based review.
 
-*Read a date's parts off the text with TypeSafe, then resolve them to a `date` in code.*
+*Read a date's parts off the text with Jev, then resolve them to a `date` in code.*
 
 The function you build here, `extract_date(document, role)`, takes a document and a
 phrase naming the date you want, such as "the deadline to return the form", and hands
-back a `date` with a confidence. It flags a low-confidence read, and one whose parts do
-not add up to a date at all, including a date the document never states. The date can be
-spelled out ("August 14, 2027") or written relative to today ("tomorrow", "next
-Thursday").
+back a `date` with a confidence. It flags a low-confidence read, a read whose parts do not
+make a date, and a date the document never states. The date can be spelled out ("August
+14, 2027") or written relative to today ("tomorrow", "next Thursday").
 
-TypeSafe answers `Choice` questions about the date in one call: what kind of date it is,
-and
+Jev answers `Choice` questions about the date in one call: what kind of date it is, and
 which month, day, year, or weekday the text names. Code turns those answers into a `date`.
 The model reads what the text says and never does the calendar math.
 
-The cells below run that function over four short documents, print each date with its
-confidence, and split the results into the ones code accepts and the ones a person should
-look at.
+**`actions={true}`**
 
-![Overview diagram](../assets/cookbooks/date_extraction_cookbook/overview.png)
+```mermaid
+  %%{init: {"fontFamily": "Inter, sans-serif", "flowchart": {"rankSpacing": 35, "wrappingWidth": 300}}}%%
+flowchart LR
+    doc["document +<br/>which date<br/><i>#quot;the deadline#quot;</i>"] --> req
 
-*TypeSafe reads how the date is written and which parts the text names. Code turns those
-answers into a `date`, counting from today when the date is relative, and either accepts
-it or sends it to review.*
+    subgraph req["Jev"]
+        read["<b>Choice</b> questions: what kind<br/>of date, and which parts<br/>does the text name?<br/><i>month, day, year, or today,<br/>tomorrow, next Thursday</i>"]
+    end
+
+    req -- "the parts, as<br/>the text states them" --> math["your code does<br/>the calendar math<br/>from today's date"]
+    math --> check{"a valid date, and<br/>confident in every<br/>part it used?"}
+    check green_ok@-- "yes" --> use["use the date"]
+    check blue_review@-- "no" --> review["send to a person"]
+
+    %% Branch colours (styles.css): node classes and green_/blue_ edge ids.
+    class use neonGreen
+    class review neonBlue
+```
 
 ## Setup
 
+> [card] [Run in Colab](https://colab.research.google.com/github/typesafe-ai/typesafe-public-examples/blob/main/cookbooks/date_extraction_cookbook/date_extraction_cookbook.ipynb)
+>
+> Runs as published without an API key.
+
+> [card] [Python file](https://github.com/typesafe-ai/typesafe-public-examples/blob/main/cookbooks/date_extraction_cookbook/date_extraction_cookbook.py)
+>
+> This page as one .py file, to run locally.
+
+> [card] [Open in playground](https://console.typesafe.ai/playground#share/N4IgJg9gxgrgtgUwHYBcAqCAeKQC4AEIAMgigOQDO+FUAFgmDADYL4r35gIUCWA5knwAnBADceCAO74AZhCH4kWFPjS0YQimACGATwB0IADSEADkIhxTKChmx5CwADog4ELi4LOQKXaYSe+C50EDxQAcZBIDxIFChCMFAoPBCxgS4AEhDSPFTsrDoorBAybBxcvALCYhLSkkI8KEVIAPz4ZNoARhQQTDBFZPgAvPja+FDaLEg6CoWsSNpwMXyj+G6otPgAFAj6fPrtAIIwfDBx+ACMACxkJmT5+ADMQmD4JfgAstpCdGQAlABudoiJjaZKiBCDEZ8HgQwQgsGw1goCBsdx6bYonS6EwotxCCySXHlDHaGRFBR4+SEkzyVYLRCvSQIBAAa2x1ESm20VDISmwqnUmmx-yBfNSkOGZQK0HgyBUkG4iggKjiYORtFynHV+hcJmCDQpPG0gW8XR6fSKgSQzCY+pACPBEQINqYdqiSAl1ttAF8ffb1uxTS5fP50iAQmEIvaYnEEkkUmkHC4AJKlB5zN7p8rcfjwmpSfBa7SCc29fqsCZTGbaoomSSauhrVLsItURpF1p6qJQQ0IBomhzeABSJZg3103rd9oAYghOgkJ1P3S4vj9aMv7YdzDwmJuol9Jw5XSuQMOYEp9y5z0wjy7bVuTmcUFeQABlBDWBBwTr918AeSSCBfyEV8ADkIAhH8-2PB8ogAEQQcJoNA2Dpw9L1kxANQZVgRBUE4CAlU9VUUHVMpclpBQOy1EiKKoVkYled45l1EA-XtbFgx8PxnR7WhQnCbsXFjeJEmSVIKHDNNpVrYpswKXMqhEcRC2LUtunLIpxkmZAazmetG02Dl3geQNNi2C4AFpHguP4WmEiM+wHbiLlfAAmV9HlfK5XwAVlfAA2V8AHZXwADlfABOV8LgABlity0NPC5POS+0Lm89KomuWKAuylwLmCgqQAuMKSouSKKpikr3IS2qkvvdCXHctKmtPdysva+13N82r8u6qJ3OKwaWvK0aQHcqqJvcmqJseer5saxQ4JcT1LywnDCLw+VCOIlVqDI7T2Eot5qJUWiDpOhimKzOS2I4qJdAQb5uNDPjggEqNHNE+MJKTAhUwUuS7ozJT81UnIqBLUZNMtStdOmb45MMsJNme742gABTCVl2nWyUeGByAdoItUiioT18AxhQtigdxWBiGR+3bFA-io9oIH6AB9EpuaEEs+EJ0oxhpttDvVV5On6ZULsEB4mFyFA2PtXtGn7Y1XKiuLFpW5rSu15aTwy7W2r1lLta682TbivqJoubWButnLtZG53Cu18b3YNuLpu9h24rm-2ovi2KQ6N1aDdSsPMpju3g4uJ3jZdoqY695OPcqmOg4zg26rD9yI-1h3WoLq3c5L+OK6i9yk8jku3er9z0-rmu-abnPW4WsPbJ7s3q8ecuu6rru6+LqLHkbruW-Hx5267zvx6uXXq6uIuLaufvW6uIel5Hpex43qel5njf56XxeLb8lfW789eTb8rfx783er-3q-D4f4+r9Ph-z6vy+JtAo33HoFe+LtApPwtoFV+QD35AM-hA7+QDf4QP-kAwBLsQogItiFcBHsQpQJNiFWBWD4FYMQQQ5BWDUEEPQVgzBHtwo4JNuFfBBtwpEJduFUhTDyFMMoRw6hTDaEcPoUwxhBttZhxDjIrhHsJ4yP4VIwRDsorCKkaItR4ipGSLqjrDyOt2H6PkZNHWvCzG20MXFQR+iNH6NEfonR+i9FxVDrVNxxi3GmLqrHDxuV-G2LcfYtxji3HOLca4-OHjC6GNLjEixdVepxKCcNOJYSppxNcd3Dxvdck+LioPQxjxlF1UeEEyexSwlz2Ka45ehi14NIKTvBppTbZBKuCEq4YSrgRKuK46+r4uYoF5jIfmgsPogEONTF61EqDkwYLIOk10QbSwulQYZvAuCyUVnERZAskBCxVhhDagMQAQRmcjLUCzXhyEpJqKgrEXCPRcNibmJYQioS8CGXi4ZIxCUiCJWIYkEySWksTcipkcyVAhrUcWjokRojRNiVGTYORakaG0e46JdC3HaFSAk2Q8VkDeWSCkgwtgZlJOSfsaJ8SEnZmddozI2Qim2GMBkiyTLAxZayP4xyDTqxckOEMOLXwEsJK+UlNKvne15VxEqBNwxbRJnKAiipKYHQWfRDmNFNUqBWYxaYd0nnsX9FEeVeg3q-Kwv86MURfriUTFJLCMkqXaShYpGF1RIaKEWEqMY3LZK8tRZsCUDlAVOSFZrEVIAPipAVRNNAMBuCJu9gAdQYEoLQVqSpqA0Dmu83sZwNDTbnN8YINBlsjm+C81b9ZKs2uUWU+EFREX1RLY6DzdXrNlvRfARrmKlFNS8kAvLRkyAoKQa1YZbVfQBTGYFf1nXgtkpmT1nBwY+rhZy6G+BLU4n3UZfdLI8YYrlli-k5AlkKD5MoQUBa2V0jIPm4UGIr0nrZGQMUsACTykGHc-FDyH1vtxWKAmAG6RjE6N8VgB792NE2FTAAjuORWMgJC0wAFbPnaK+wtgwAD0nNBD4ZFPyxyasjSDm+RGDQIhUCvivUxzCZyVUtt2hqvt2rro9vFnRQ1t0WI6meX6SIIBtCmB4AANRZomBwIBRAXHYkAA)
+>
+> Edit one request and run it live. Needs a TypeSafe account.
+
+To run it on your own machine instead:
+
 ```bash
-pip install ipython 'cooksafe>=0.2.0,<0.3.0'
+pip install ipython 'cooksafe>=0.3.0,<0.4.0'
 ```
 
-then set `TYPESAFE_API_KEY`.
+The code replays saved answers, so it runs as published without an API key. To change a
+request, set `TYPESAFE_API_KEY`; in Colab, add it in the Secrets panel.
 
 ```python
+import json
 import os
+import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -46,11 +72,11 @@ from cooksafe import JsonCache, make_playground_link
 from IPython.display import Markdown, display
 from typesafe_sdk import Choice, TypeSafeClient
 
-TYPESAFE_MODEL = "jev-1.12"
+TYPESAFE_MODEL = "jev-1.14.0"  # the page's model; "jev-latest" runs the newest, live
 TODAY = date(
     2026, 7, 30
 )  # fixed reference "today" so relative dates resolve reproducibly
-REVIEW_BELOW = 0.60  # gate: a date below this confidence is flagged for a human
+REVIEW_BELOW = 0.60  # threshold: a date below this confidence is flagged for a human
 
 MONTHS = {
     "January": 1,
@@ -77,22 +103,47 @@ WEEKDAYS = [
 ]
 YEAR_WINDOW = list(range(1900, 2051))  # 1900..2050
 
-# Cached to json_cache.json (shipped with the cookbook, so re-rendering replays the published
-# results with no API spend); delete it to re-run live.
-json_cache = JsonCache(Path("json_cache.json"))
+EXAMPLES_URL = (
+    "https://raw.githubusercontent.com/typesafe-ai/typesafe-public-examples/main/"
+    "cookbooks/date_extraction_cookbook"
+)
+
+def download(name: str) -> Path:
+    """Fetch one of this cookbook's files from typesafe-public-examples unless it is on disk."""
+    path = Path(name)
+    if not path.exists():
+        urllib.request.urlretrieve(f"{EXAMPLES_URL}/{name}", path)
+    return path
+
+CACHE = Path("date_extraction_cookbook_cache.json")
+# True fills CACHE with the published answers, so the run makes no requests. To run
+# live, set it to False and delete CACHE; a CACHE already on disk is never overwritten.
+DOWNLOAD_CACHE = True
+if DOWNLOAD_CACHE:
+    download(CACHE.name)
+json_cache = JsonCache(CACHE)
 ```
 
 ```python
-# The demo cells below run when this file is executed as the cookbook; the constants and the pure
-# resolve/assemble code stay importable, so the calendar math can be unit-tested on its own.
-if __name__ == "__cookbook__":
-    client = TypeSafeClient(
-        api_key=os.environ.get(
-            "TYPESAFE_API_KEY", "cache-only"
-        ),  # cached re-renders need no key
-        base_url=os.environ.get("TYPESAFE_BASE_URL"),
-        timeout=30.0,
-    )
+# The keys this cookbook uses. In Colab, keys saved in the Secrets panel are copied in here.
+KEYS = ["TYPESAFE_API_KEY"]
+try:
+    from google.colab import userdata
+except ImportError:  # not in Colab
+    userdata = None
+for key in KEYS:
+    if userdata is not None and key not in os.environ:
+        try:
+            os.environ[key] = userdata.get(key)
+        except (userdata.SecretNotFoundError, userdata.NotebookAccessError):
+            pass  # not saved, or this notebook may not read it
+
+client = TypeSafeClient(
+    # A run that replays the cache needs no key.
+    api_key=os.environ.get("TYPESAFE_API_KEY", "cache-only"),
+    base_url=os.environ.get("TYPESAFE_BASE_URL"),
+    timeout=30.0,
+)
 ```
 
 ## The questions
@@ -176,11 +227,11 @@ def date_questions(role: str) -> dict[str, Choice]:
 
 ## Resolve it in code
 
-`read_parts` makes the call. `assemble` turns the answers into a `date`: it fills in the
-year when the text states none, and it works out which day a named weekday points at. Both
-of those count from `TODAY`, which is pinned so relative dates come out the same on every
-run. `assemble` also reports the lowest confidence among the parts it used, so a weak
-answer on any one part can send the whole date to review.
+One call reads all seven parts. The answers then become a `date`, with the year filled in
+when the text states none and a named weekday resolved to the day it points at. Both of
+those count from `TODAY`, which is pinned so relative dates come out the same on every run.
+A date's confidence is the lowest among the parts it used, so a weak answer on any one part
+can send the whole date to review.
 
 "next Thursday" can mean two different days, so code decides which. A weekday with no
 qualifier means the next one on or after today. `next` means the following calendar week,
@@ -188,10 +239,10 @@ and `current` means this week.
 
 ```python
 @json_cache
-def read_parts(document: str, role: str) -> dict:
+def read_parts(document: str, questions_json: str, model: str) -> dict:
     """One TypeSafe call -> {part: {choice, confidence}} for the seven questions."""
     answers = client.system_one(
-        state=document, questions=date_questions(role), model=TYPESAFE_MODEL
+        state=document, questions=json.loads(questions_json), model=model
     ).answers
     return {
         part: {"choice": ans.choice, "confidence": ans.confidence}
@@ -210,7 +261,7 @@ def resolve_weekday(today: date, weekday: str, week_offset: str) -> date:
     return today + timedelta(days=(w - today.weekday()) % 7)
 
 def assemble(parts: dict, today: date = TODAY) -> dict:
-    """Resolve the parts TypeSafe read into a concrete date, in code. Confidence is the weakest of
+    """Resolve the parts Jev read into a concrete date, in code. Confidence is the weakest of
     the parts the shape actually used."""
     mode = parts["mode"]["choice"]
     confs = [parts["mode"]["confidence"]]
@@ -288,14 +339,18 @@ def assemble(parts: dict, today: date = TODAY) -> dict:
     return result(None, f"unrecognized mode: {mode}")
 
 def extract_date(document: str, role: str) -> dict:
-    return assemble(read_parts(document, role))
+    questions = {
+        part: question.model_dump(mode="json", exclude_none=True)
+        for part, question in date_questions(role).items()
+    }
+    return assemble(read_parts(document, json.dumps(questions), model=TYPESAFE_MODEL))
 ```
 
 ## Run it
 
-Six questions across four short documents: two dates from a contract that states its years,
-a form deadline written without a year, a survey that closes "today", a review set for
-"next Thursday", and a date the form never mentions. All of them resolve against `TODAY` =
+Six dates to find in four short documents: two from a contract that states its years, a
+form deadline written without a year, a survey that closes "today", a review set for "next
+Thursday", and a date the form never mentions. All of them resolve against `TODAY` =
 2026-07-30, a Thursday.
 
 ```python
@@ -314,69 +369,61 @@ EXAMPLES = [
     (REVIEW, "the date of the design review", date(2026, 8, 6)),
 ]
 
-if __name__ == "__cookbook__":
-    print(f"{'':3}{'question':<38}{'expected':<12}{'got':<12}{'conf':>6}  flags")
-    print("-" * 84)
-    for document, role, expected in EXAMPLES:
-        r = extract_date(document, role)
-        got = r["date"].isoformat() if r["date"] else "none"
-        exp = expected.isoformat() if expected else "none"
-        mark = "OK" if r["date"] == expected else "XX"
-        conf = f"{r['confidence']:.2f}" if r["confidence"] is not None else " n/a"
-        flags = "  <== review" if r["needs_review"] else ""
-        if r["note"]:
-            flags += f"  ({r['note']})"
-        print(f"{mark:<3}{role:<38}{exp:<12}{got:<12}{conf:>6}{flags}")
+print(f"{'':3}{'question':<38}{'expected':<12}{'got':<12}{'conf':>6}  flags")
+print("-" * 84)
+for document, role, expected in EXAMPLES:
+    r = extract_date(document, role)
+    got = r["date"].isoformat() if r["date"] else "none"
+    exp = expected.isoformat() if expected else "none"
+    mark = "OK" if r["date"] == expected else "XX"
+    conf = f"{r['confidence']:.2f}" if r["confidence"] is not None else " n/a"
+    flags = "  <== review" if r["needs_review"] else ""
+    if r["note"]:
+        flags += f"  ({r['note']})"
+    print(f"{mark:<3}{role:<38}{exp:<12}{got:<12}{conf:>6}{flags}")
 ```
 
 ```
    question                              expected    got           conf  flags
 ------------------------------------------------------------------------------------
-OK the date the agreement takes effect   2025-01-01  2025-01-01    0.97
-OK the date the agreement expires        2027-12-31  2027-12-31    0.91
-OK the deadline to return the form       2026-08-14  2026-08-14    0.95
-OK the date of the kickoff call          none        none          0.46  <== review  (absolute date incomplete)
-OK the date the survey closes            2026-07-30  2026-07-30    0.94
-OK the date of the design review         2026-08-06  2026-08-06    0.92
+OK the date the agreement takes effect   2025-01-01  2025-01-01    0.87
+OK the date the agreement expires        2027-12-31  2027-12-31    0.97
+OK the deadline to return the form       2026-08-14  2026-08-14    1.00
+OK the date of the kickoff call          none        none          0.66  <== review  (no such date stated)
+OK the date the survey closes            2026-07-30  2026-07-30    0.98
+OK the date of the design review         2026-08-06  2026-08-06    0.87
 ```
 
 The contract states both of its years, so those came off the text. The form states no year,
 so code filled in 2026: it takes the current year and moves to the next one only when the
-date is already more than a month past. "today" and "next Thursday" went through the same
-function as the spelled-out dates.
+date is already more than a month past.
 
 The kickoff call is the one the form never mentions. There is a date in that form, just not
-this one, and the note `absolute date incomplete` means `mode` came back `absolute` with no
-month to go with it. The date came back empty, the confidence reads 0.46, and the row is
-flagged for a person.
+this one. The note `no such date stated` means `mode` came back `none`. The date came back
+empty and the row is flagged for a person, even though its confidence of 0.66 clears the
+gate: a date the document never states always goes to review.
 
 ## Confidence to route on
 
-Every answer comes back with a calibrated confidence, and a date's confidence is the lowest
-one among the parts that went into it. A date under `REVIEW_BELOW` = 0.60 goes to a person,
-and so does a date code could not assemble at all. The rest go straight through.
+A date under `REVIEW_BELOW` = 0.60 goes to a person, and so does any date that could not be
+assembled. The rest go straight through.
 
 ```python
-if __name__ == "__cookbook__":
-    confident = [
-        (doc, role)
-        for doc, role, _ in EXAMPLES
-        if not extract_date(doc, role)["needs_review"]
-    ]
-    review = [
-        (doc, role)
-        for doc, role, _ in EXAMPLES
-        if extract_date(doc, role)["needs_review"]
-    ]
-    print(f"auto-accept ({len(confident)}):")
-    for _doc, role in confident:
-        print(f"  - {role}")
-    print(f"\nsend to review ({len(review)}):")
-    for _doc, role in review:
-        r = extract_date(_doc, role)
-        print(
-            f"  - {role}  (conf {r['confidence']:.2f} / {r['note'] or 'low confidence'})"
-        )
+confident = [
+    (doc, role)
+    for doc, role, _ in EXAMPLES
+    if not extract_date(doc, role)["needs_review"]
+]
+review = [
+    (doc, role) for doc, role, _ in EXAMPLES if extract_date(doc, role)["needs_review"]
+]
+print(f"auto-accept ({len(confident)}):")
+for _doc, role in confident:
+    print(f"  - {role}")
+print(f"\nsend to review ({len(review)}):")
+for _doc, role in review:
+    r = extract_date(_doc, role)
+    print(f"  - {role}  (conf {r['confidence']:.2f} / {r['note'] or 'low confidence'})")
 ```
 
 ```
@@ -388,25 +435,24 @@ auto-accept (5):
   - the date of the design review
 
 send to review (1):
-  - the date of the kickoff call  (conf 0.46 / absolute date incomplete)
+  - the date of the kickoff call  (conf 0.66 / no such date stated)
 ```
 
-## Open it in the TypeSafe playground
+## Open it in the playground
 
 The link below carries the "next Thursday" message and the same questions the code sends.
 Open it to see the answers and their confidences, and to change the wording without writing
 any code.
 
 ```python
-if __name__ == "__cookbook__":
-    playground_link = make_playground_link(
-        REVIEW, date_questions("the date of the design review"), models=[TYPESAFE_MODEL]
+playground_link = make_playground_link(
+    REVIEW, date_questions("the date of the design review")
+)
+display(
+    Markdown(
+        f"🔗 [Open in the TypeSafe playground]({playground_link})"
     )
-    display(
-        Markdown(
-            f"🔗 [Open this document + questions in the TypeSafe playground]({playground_link})"
-        )
-    )
+)
 ```
 
-<a href="https://console.typesafe.ai/playground#share/N4IgJg9gxgrgtgUwHYBcAqCAeKQC4AEIAMgigOQDO+FUAFgmDADYL4r35gIUCWA5knwAnBADceCAO74AZhCH4kWFPjS0YQimACGATwB0IADSEADkIhxTKChmx5CwADog4ELi4LOQKXaYSe+C50EDxQAcZBIDxIFChCMFAoPBCxgS4AEhDSPFTsrDoorBAybBxcvALCYhLSkkI8KEVIAPz4ZNoARhQQTDBFZPgAvPja+FDaLEg6CoWsSNpwMXyj+G6otPgAFAj6fPrtAIIwfDBx+ACMACxkJmT5+ADMQmD4JfgAstpCdGQAlABudoiJjaZKiBCDEZ8HgQwQgsGw1goCBsdx6bYonS6EwotxCCySXHlDHaGRFBR4+SEkzyVYLRCvSQIBAAa2x1ESm20VDISmwqnUmmx-yBfNSkOGZQK0HgyBUkG4iggKjiYORtFynHV+hcJmCDQpPG0gW8XR6fSKgSQzCY+pACPBEQINqYdqiSAl1ttAF8ffb1uxTS5fP50iAQmEIvaYnEEkkUmkHC4AJKlB5zN7p8rcfjwmpSfBa7SCc29fqsCZTGbaoomSSauhrVLsItURpF1p6qJQQ0IBomhzeABSJZg3103rd9oAYghOgkJ1P3S4vj9aMv7YdzDwmJuol9Jw5XSuQMOYEp9y5z0wjy7bVuTmcUFeQABlBDWBBwTr918AeSSCBfyEV8ADkIAhH8-2PB8ogAEQQcJoNA2Dpw9L1kxANQZVgRBUE4CAlU9VUUHVMpclpBQOy1EiKKoVkYled45l1EA-XtbFgx8PxnR7WhQnCbsXFjeJEmSVIKHDNNpVrYpswKXMqhEcRC2LUtunLIpxkmZAazmetG02Dl3geQNNi2C4AFpHguP4WmEiM+wHbiLlfAAmV9HlfK5XwAVlfAA2V8AHZXwADlfABOV8LgABlity0NPC5POS+0Lm89KomuWKAuylwLmCgqQAuMKSouSKKpikr3IS2qkvvdCXHctKmtPdysva+13N82r8u6qJ3OKwaWvK0aQHcqqJvcmqJseer5saxQ4JcT1LywnDCLw+VCOIlVqDI7T2Eot5qJUWiDpOhimKzOS2I4qJdAQb5uNDPjggEqNHNE+MJKTAhUwUuS7ozJT81UnIqBLUZNMtStdOmb45MMsJNme742gABTCVl2nWyUeGByAdoItUiioT18AxhQtigdxWBiGR+3bFA-io9oIH6AB9EpuaEEs+EJ0oxhpttDvVV5On6ZULsEB4mFyFA2PtXtGn7Y1XKiuLFpW5rSu15aTwy7W2r1lLta682TbivqJoubWButnLtZG53Cu18b3YNuLpu9h24rm-2ovi2KQ6N1aDdSsPMpju3g4uJ3jZdoqY695OPcqmOg4zg26rD9yI-1h3WoLq3c5L+OK6i9yk8jku3er9z0-rmu-abnPW4WsPbJ7s3q8ecuu6rru6+LqLHkbruW-Hx5267zvx6uXXq6uIuLaufvW6uIel5Hpex43qel5njf56XxeLb8lfW789eTb8rfx783er-3q-D4f4+r9Ph-z6vy+JtAo33HoFe+LtApPwtoFV+QD35AM-hA7+QDf4QP-kAwBLsQogItiFcBHsQpQJNiFWBWD4FYMQQQ5BWDUEEPQVgzBHtwo4JNuFfBBtwpEJduFUhTDyFMMoRw6hTDaEcPoUwxhBttZhxDjIrhHsJ4yP4VIwRDsorCKkaItR4ipGSLqjrDyOt2H6PkZNHWvCzG20MXFQR+iNH6NEfonR+i9FxVDrVNxxi3GmLqrHDxuV-G2LcfYtxji3HOLca4-OHjC6GNLjEixdVepxKCcNOJYSppxNcd3Dxvdck+LioPQxjxlF1UeEEyexSwlz2Ka45ehi14NIKTvBppTbZBKuCEq4YSrgRKuK46+r4uYoF5jIfmgsPogEONTF61EqDkwYLIOk10QbSwulQYZvAuCyUVnERZAskBCxVhhDagMQAQRmcjLUCzXhyEpJqKgrEXCPRcNibmJYQioS8CGXi4ZIxCUiCJWIYkEySWksTcipkcyVAhrUcWjokRojRNiVGTYORakaG0e46JdC3HaFSAk2Q8VkDeWSCkgwtgZlJOSfsaJ8SEnZmddozI2Qim2GMBkiyTLAxZayP4xyDTqxckOEMOLXwEsJK+UlNKvne15VxEqBNwxbRJnKAiipKYHQWfRDmNFNUqBWYxaYd0nnsX9FEeVeg3q-Kwv86MURfriUTFJLCMkqXaShYpGF1RIaKEWEqMY3LZK8tRZsCUDlAVOSFZrEVIAPipAVRNNAMBuCJu9gAdQYEoLQVqSpqA0Dmu83sZwNDTbnN8YINBlsjm+C81b9ZKs2uUWU+EFREX1RLY6DzdXrNlvRfARrmKlFNS8kAvLRkyAoKQa1YZbVfQBTGYFf1nXgtkpmT1nBwY+rhZy6G+BLU4n3UZfdLI8YYrlli-k5AlkKD5MoQUBa2V0jIPm4UGIr0nrZGQMUsACTykGHc-FDyH1vtxWKAmAG6RjE6N8VgB792NE2FTAAjuORWMgJC0wAFbPnaK+wtgwAD0nNBD4ZFPyxyasjSDm+RGDQIhUCvivUxzCZyVUtt2hqvt2rro9vFnRQ1t0WI6meX6SIIBtCmB4AANRZomBwIBRAXHE1OlgSQGDxq4EwCgDgADaIAsNiCshcfQqUQAAF0fRAA" target="_blank" rel="noreferrer" className="text-primary">Open this document + questions in the TypeSafe playground →</a>
+[Open in the TypeSafe playground →](https://console.typesafe.ai/playground#share/N4IgJg9gxgrgtgUwHYBcAqCAeKQC4AEIAMgigOQDO+FUAFgmDADYL4r35gIUCWA5knwAnBADceCAO74AZhCH4kWFPjS0YQimACGATwB0IADSEADkIhxTKChmx5CwADog4ELi4LOQKXaYSe+C50EDxQAcZBIDxIFChCMFAoPBCxgS4AEhDSPFTsrDoorBAybBxcvALCYhLSkkI8KEVIAPz4ZNoARhQQTDBFZPgAvPja+FDaLEg6CoWsSNpwMXyj+G6otPgAFAj6fPrtAIIwfDBx+ACMACxkJmT5+ADMQmD4JfgAstpCdGQAlABudoiJjaZKiBCDEZ8HgQwQgsGw1goCBsdx6bYonS6EwotxCCySXHlDHaGRFBR4+SEkzyVYLRCvSQIBAAa2x1ESm20VDISmwqnUmmx-yBfNSkOGZQK0HgyBUkG4iggKjiYORtFynHV+hcJmCDQpPG0gW8XR6fSKgSQzCY+pACPBEQINqYdqiSAl1ttAF8ffb1uxTS5fP50iAQmEIvaYnEEkkUmkHC4AJKlB5zN7p8rcfjwmpSfBa7SCc29fqsCZTGbaoomSSauhrVLsItURpF1p6qJQQ0IBomhzeABSJZg3103rd9oAYghOgkJ1P3S4vj9aMv7YdzDwmJuol9Jw5XSuQMOYEp9y5z0wjy7bVuTmcUFeQABlBDWBBwTr918AeSSCBfyEV8ADkIAhH8-2PB8ogAEQQcJoNA2Dpw9L1kxANQZVgRBUE4CAlU9VUUHVMpclpBQOy1EiKKoVkYled45l1EA-XtbFgx8PxnR7WhQnCbsXFjeJEmSVIKHDNNpVrYpswKXMqhEcRC2LUtunLIpxkmZAazmetG02Dl3geQNNi2C4AFpHguP4WmEiM+wHbiLlfAAmV9HlfK5XwAVlfAA2V8AHZXwADlfABOV8LgABlity0NPC5POS+0Lm89KomuWKAuylwLmCgqQAuMKSouSKKpikr3IS2qkvvdCXHctKmtPdysva+13N82r8u6qJ3OKwaWvK0aQHcqqJvcmqJseer5saxQ4JcT1LywnDCLw+VCOIlVqDI7T2Eot5qJUWiDpOhimKzOS2I4qJdAQb5uNDPjggEqNHNE+MJKTAhUwUuS7ozJT81UnIqBLUZNMtStdOmb45MMsJNme742gABTCVl2nWyUeGByAdoItUiioT18AxhQtigdxWBiGR+3bFA-io9oIH6AB9EpuaEEs+EJ0oxhpttDvVV5On6ZULsEB4mFyFA2PtXtGn7Y1XKiuLFpW5rSu15aTwy7W2r1lLta682TbivqJoubWButnLtZG53Cu18b3YNuLpu9h24rm-2ovi2KQ6N1aDdSsPMpju3g4uJ3jZdoqY695OPcqmOg4zg26rD9yI-1h3WoLq3c5L+OK6i9yk8jku3er9z0-rmu-abnPW4WsPbJ7s3q8ecuu6rru6+LqLHkbruW-Hx5267zvx6uXXq6uIuLaufvW6uIel5Hpex43qel5njf56XxeLb8lfW789eTb8rfx783er-3q-D4f4+r9Ph-z6vy+JtAo33HoFe+LtApPwtoFV+QD35AM-hA7+QDf4QP-kAwBLsQogItiFcBHsQpQJNiFWBWD4FYMQQQ5BWDUEEPQVgzBHtwo4JNuFfBBtwpEJduFUhTDyFMMoRw6hTDaEcPoUwxhBttZhxDjIrhHsJ4yP4VIwRDsorCKkaItR4ipGSLqjrDyOt2H6PkZNHWvCzG20MXFQR+iNH6NEfonR+i9FxVDrVNxxi3GmLqrHDxuV-G2LcfYtxji3HOLca4-OHjC6GNLjEixdVepxKCcNOJYSppxNcd3Dxvdck+LioPQxjxlF1UeEEyexSwlz2Ka45ehi14NIKTvBppTbZBKuCEq4YSrgRKuK46+r4uYoF5jIfmgsPogEONTF61EqDkwYLIOk10QbSwulQYZvAuCyUVnERZAskBCxVhhDagMQAQRmcjLUCzXhyEpJqKgrEXCPRcNibmJYQioS8CGXi4ZIxCUiCJWIYkEySWksTcipkcyVAhrUcWjokRojRNiVGTYORakaG0e46JdC3HaFSAk2Q8VkDeWSCkgwtgZlJOSfsaJ8SEnZmddozI2Qim2GMBkiyTLAxZayP4xyDTqxckOEMOLXwEsJK+UlNKvne15VxEqBNwxbRJnKAiipKYHQWfRDmNFNUqBWYxaYd0nnsX9FEeVeg3q-Kwv86MURfriUTFJLCMkqXaShYpGF1RIaKEWEqMY3LZK8tRZsCUDlAVOSFZrEVIAPipAVRNNAMBuCJu9gAdQYEoLQVqSpqA0Dmu83sZwNDTbnN8YINBlsjm+C81b9ZKs2uUWU+EFREX1RLY6DzdXrNlvRfARrmKlFNS8kAvLRkyAoKQa1YZbVfQBTGYFf1nXgtkpmT1nBwY+rhZy6G+BLU4n3UZfdLI8YYrlli-k5AlkKD5MoQUBa2V0jIPm4UGIr0nrZGQMUsACTykGHc-FDyH1vtxWKAmAG6RjE6N8VgB792NE2FTAAjuORWMgJC0wAFbPnaK+wtgwAD0nNBD4ZFPyxyasjSDm+RGDQIhUCvivUxzCZyVUtt2hqvt2rro9vFnRQ1t0WI6meX6SIIBtCmB4AANRZomBwIBRAXHYkAA)

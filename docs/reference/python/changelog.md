@@ -5,117 +5,96 @@
 
 > Python clients for the TypeSafe AI API
 
-<a id="changelog"></a>
+## v0.7.5 (2026-10-14)
 
-<a id="v073-2026-10-09"></a>
+### Documentation
+
+* split usage guide into Basic and Advanced pages
+* add docs for working with images
+* add docs for `Box` type
+
+### Features
+
+* enable request body compression with `zstd` by default (non-official APIs may not support this immediately)
+* support `Image` assets from raw bytes, file paths, base64 strings, and PIL objects
+* support `Box` questions and answers
+* reference assets in text with `attach_assets`
+
+## v0.7.4 (2026-10-09)
+
+### Bug fixes
+
+* serialize non-finite numbers as strings instead of invalid JSON tokens
 
 ## v0.7.3 (2026-10-09)
-
-<a id="bug-fixes"></a>
 
 ### Bug fixes
 
 * prevent async client crashes during concurrent TLS connections with `truststore<=0.10.4`
 * add more request validation checks
 
-<a id="documentation"></a>
-
-### `Documentation`
+### Documentation
 
 * add a new Performance section with tips for high-concurrency usage
 
-<a id="performance"></a>
-
-### `Performance`
+### Performance
 
 * update the default settings to keep all pooled connections alive for 30 seconds
 
-<a id="v072-2026-09-26"></a>
-
 ## v0.7.2 (2026-09-26)
 
-<a id="miscellaneous"></a>
-
-### `Miscellaneous`
+### Miscellaneous
 
 * add `http2` extra to `typesafe-sdk` package
 
-<a id="documentation_1"></a>
-
-### `Documentation`
+### Documentation
 
 * document `typesafe-sdk` usage with HTTP/2 support
 
-<a id="v071-2026-09-21"></a>
-
 ## v0.7.1 (2026-09-21)
-
-<a id="bug-fixes_1"></a>
 
 ### Bug fixes
 
 * validate the API key early and exclude the value from logged exceptions
 
-<a id="documentation_2"></a>
-
-### `Documentation`
+### Documentation
 
 * add examples for usage with AI gateways
 
-<a id="v070-2026-09-18"></a>
-
 ## v0.7.0 (2026-09-18)
-
-<a id="breaking-changes"></a>
 
 ### Breaking Changes
 
 * ser/de library has been changed from `msgspec` to `pydantic`
 
-<a id="bug-fixes_2"></a>
-
 ### Bug fixes
 
 * `str` subclasses are now correctly serialized as strings instead of lists of characters
 
-<a id="features"></a>
-
-### `Features`
+### Features
 
 * the `system_one` method now accepts a new `response_model` argument that can be set to a desired `pydantic` model for additional *type-safety*
 
-<a id="v060-2026-09-15"></a>
-
 ## v0.6.0 (2026-09-15)
-
-<a id="breaking-changes_1"></a>
 
 ### Breaking Changes
 
 * accept `Score.criteria` as an ordered sequence instead of a dictionary keyed by integers
 
-<a id="features_1"></a>
-
-### `Features`
+### Features
 
 * improve type annotations on SDK inputs to accept abstract types like `Mapping` and `Sequence`
 * improve error messages to include http details and metadata
-
-<a id="bug-fixes_3"></a>
 
 ### Bug fixes
 
 * handle invalid values in `RetryPolicy`
 * make exceptions and responses picklable
 
-<a id="documentation_3"></a>
-
-### `Documentation`
+### Documentation
 
 * link more concepts from main [docs](https://docs.typesafe.ai/)
 
-<a id="v057-2026-09-14"></a>
-
 ## v0.5.7 (2026-09-14)
 
-This is the initial public release of TypeSafe Python SDK. Learn more in the [documentation](https://docs.typesafe.ai/sdk/python).
+This is the initial public release of TypeSafe Python SDK. Learn more in the [documentation](https://docs.typesafe.ai/go/python-sdk.md).

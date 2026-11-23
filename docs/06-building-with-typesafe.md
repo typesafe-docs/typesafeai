@@ -509,7 +509,7 @@ def failed_checks(trace_state: dict, threshold: float = 0.5) -> list[str]:
 **TypeScript**
 
 ```ts
-import { noul, TypeSafeClient, type EntryType } from "@typesafe-ai/sdk";
+import { noul, TypeSafeClient, type JsonValue } from "@typesafe-ai/sdk";
 
 const TRACE_CHECKS = {
   geocode_tool_is_relevant: noul("Is `trace.tool_calls[0].name` an appropriate tool for resolving `request.location`?"),
@@ -523,7 +523,7 @@ const TRACE_CHECKS = {
   weather_unit_matches: noul("Does `trace.tool_calls[1].arguments.unit` match `request.unit`?"),
 };
 
-async function failedChecks(traceState: EntryType, threshold = 0.5): Promise<string[]> {
+async function failedChecks(traceState: { [key: string]: JsonValue }, threshold = 0.5): Promise<string[]> {
   const { answers } = await new TypeSafeClient().systemOne({ state: traceState, questions: TRACE_CHECKS });
   return (Object.keys(TRACE_CHECKS) as (keyof typeof TRACE_CHECKS)[]).filter((k) => answers[k].noul < threshold);
 }
@@ -533,7 +533,7 @@ async function failedChecks(traceState: EntryType, threshold = 0.5): Promise<str
 
 ### 5. Use structure in the questions
 
-Put the question in one field and the supporting data in others. This helps when:
+Keep questions short. `instructions` and `criteria` are usually strings, and for a short, unambiguous question a string is all you need. They can also be objects or arrays: put the question in one field and the data that guides it in others. This helps when:
 
 - The question needs context or examples.
 - Part of the question comes from your code, such as a value from a database row.
@@ -562,9 +562,76 @@ noul({
 });
 ```
 
+The descriptions inside `criteria` can be objects too. For a Choice, give each option an object that says what the option covers, what belongs to a different option, and a few examples. Use the same field names across options so the model can compare them directly:
+
+**Python**
+
+```python
+from typesafe_sdk import Choice, TypeSafeClient
+
+client = TypeSafeClient()
+card_help_topic = Choice(
+    instructions={
+        "question": "Which disposable virtual card topic is the user asking about?",
+        "focus": "Classify the information the user wants.",
+    },
+    criteria={
+        "get_disposable_virtual_card": {
+            "what": "Purpose, eligibility, or setup",
+            "not_for": "Quantity, transaction, or merchant restrictions",
+            "examples": ["How can I get a disposable virtual card?", "What are disposable cards for?"],
+        },
+        "disposable_card_limits": {
+            "what": "Quantity, transaction, or merchant restrictions",
+            "not_for": "Purpose, eligibility, or setup",
+            "examples": ["How many disposable cards can I make per day?", "Where can I use a disposable card?"],
+        },
+    },
+)
+response = client.system_one(
+    "How many disposable virtual cards can I make per day?",
+    {"card_help_topic": card_help_topic},
+)
+print(response.choices["card_help_topic"].choice)
+```
+
+**TypeScript**
+
+<!-- ts-check run -->
+```ts
+import { choice, TypeSafeClient } from "@typesafe-ai/sdk";
+
+const client = new TypeSafeClient();
+const cardHelpTopic = choice(
+  {
+    question: "Which disposable virtual card topic is the user asking about?",
+    focus: "Classify the information the user wants.",
+  },
+  {
+    get_disposable_virtual_card: {
+      what: "Purpose, eligibility, or setup",
+      not_for: "Quantity, transaction, or merchant restrictions",
+      examples: ["How can I get a disposable virtual card?", "What are disposable cards for?"],
+    },
+    disposable_card_limits: {
+      what: "Quantity, transaction, or merchant restrictions",
+      not_for: "Purpose, eligibility, or setup",
+      examples: ["How many disposable cards can I make per day?", "Where can I use a disposable card?"],
+    },
+  },
+);
+const { answers } = await client.systemOne({
+  state: "How many disposable virtual cards can I make per day?",
+  questions: { card_help_topic: cardHelpTopic },
+});
+console.log(answers.card_help_topic.choice); // "get_disposable_virtual_card" | "disposable_card_limits"
+```
+
+Each question type's page has a worked example: [Noul](04-primitives/noul.md#structured-instructions-questions-built-in-code) (one question per candidate record, built in code), [Choice](04-primitives/choice.md#structured-contrastive-criteria) (two easily confused options), and [Score](04-primitives/score.md#structured-level-descriptions) (a description and examples per level). The [SDE cascade](08-cookbooks.md#sde-cascade) shows the shared-wording case. A short, unambiguous question or criterion can stay a string; add structure when it separates guidance that would otherwise blur together. See [Advanced: structure](04-primitives/advanced-structure.md).
+
 ### 6. Ask a lot of questions
 
-Ask many narrow, independent questions about the same state in **one** request. That's how you get the most intelligence per dollar. See [Speculative fan-out](07-patterns.md#speculative-fan-out).
+Ask many narrow, independent questions about the same state in **one** request. That's how you get the most intelligence per dollar. See [Speculative fan-out](07-patterns.md#speculative-fan-out) and the [Parallel questions cookbook](08-cookbooks.md#parallel-questions).
 
 ### 7. Combine outputs in code, or feed them to a classical ML model
 
@@ -599,6 +666,8 @@ For learned composition, use the probabilities as features in a downstream model
 
 ### 8. Route on uncertainty
 
+Make code take different actions for confident and unconfident answers, and escalate uncertain cases to a person or a more expensive reasoning model. Test thresholds by plotting confidence against accuracy on your data. For a Noul, a good starting point is 0.7 for yes and 0.3 for no; see [Reading a Noul](04-primitives/noul.md#reading-a-noul).
+
 **Python**
 
 ```python
@@ -625,6 +694,8 @@ const answer = answers.card_help_topic;
 if (answer.confidence < 0.8) routeToHumanReview(ticket);
 else routeToHandler(answer.choice, ticket);
 ```
+
+See [Confidence](05-confidence.md) and [Routing by probability](07-patterns.md#routing-by-probability) for choosing thresholds and matching them to the risk of each action.
 
 > Decomposing doesn't cost extra round trips. Questions over the same state run in parallel.
 

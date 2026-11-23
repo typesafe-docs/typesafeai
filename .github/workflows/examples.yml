@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -r examples/python/requirements.txt mypy
+      - run: pip install -r examples/python/requirements.txt mypy zstandard  # the mock decodes zstd bodies
       - name: Type-check
         run: mypy --ignore-missing-imports examples/python
       - name: Run against the offline mock API
@@ -33,10 +33,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - run: pip install zstandard  # the mock decodes zstd bodies
       - run: npm install
       - name: Type-check
         run: npx tsc -p .

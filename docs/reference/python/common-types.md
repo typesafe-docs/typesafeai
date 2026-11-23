@@ -5,34 +5,52 @@
 
 > Common types for TypeSafe API SDK.
 
-<a id="common-types"></a>
-
-<a id="typesafe_sdk.JSONValue"></a>
-
-## `typesafe_sdk.JSONValue`
+## typesafe\_sdk.JSONValue
 
 `module-attribute`
 
-```python
-JSONValue = TypeAliasType(
-    "JSONValue",
-    "str | int | float | bool | Sequence[JSONValue | None] | Mapping[str, JSONValue | None]",
-)
-```
+Copy signature
+<pre tabIndex="0" aria-label="SDK signature">`JSONValue = [TypeAliasType](https://typing-extensions.readthedocs.io/en/latest/index.html#typing_extensions.TypeAliasType)(
+&#x20;   "JSONValue",
+&#x20;   "str | int | float | bool | Sequence\[JSONValue | None] | Mapping\[str, JSONValue | None]",
+)`</pre>
 
 A JSON-like value. May be nested and contain `None`.
 
-<a id="typesafe_sdk.JSONContent"></a>
-
-## `typesafe_sdk.JSONContent`
+## typesafe\_sdk.JSONContent
 
 `module-attribute`
 
-```python
-JSONContent = TypeAliasType(
-    "JSONContent",
-    "str | Mapping[str, JSONValue | None] | Sequence[JSONValue | None]",
-)
-```
+Copy signature
+<pre tabIndex="0" aria-label="SDK signature">`JSONContent = [TypeAliasType](https://typing-extensions.readthedocs.io/en/latest/index.html#typing_extensions.TypeAliasType)(
+&#x20;   "JSONContent",
+&#x20;   "str | Mapping\[str, JSONValue | None] | Sequence\[JSONValue | None]",
+)`</pre>
 
-Either a plain string or a mapping/sequence of [`JSONValue`](#typesafe_sdk.JSONValue) entries.
+Either a plain string or a mapping/sequence of [`JSONValue`](https://docs.typesafe.ai/sdk/python/api/types/common#typesafe_sdk.JSONValue) entries.
+
+## typesafe\_sdk.ContentValue
+
+`module-attribute`
+
+Copy signature
+<pre tabIndex="0" aria-label="SDK signature">`ContentValue = [TypeAliasType](https://typing-extensions.readthedocs.io/en/latest/index.html#typing_extensions.TypeAliasType)(
+&#x20;   "ContentValue",
+&#x20;   "str | int | float | bool | Sequence\[ContentValue | None] | Mapping\[str, ContentValue | None] | Asset",
+)`</pre>
+
+A JSON-like value that may also hold [assets](https://docs.typesafe.ai/sdk/python/api/types/assets.md#typesafe_sdk.Asset). May be nested and contain `None`.
+
+## typesafe\_sdk.Content
+
+`module-attribute`
+
+Copy signature
+<pre tabIndex="0" aria-label="SDK signature">`Content = [TypeAliasType](https://typing-extensions.readthedocs.io/en/latest/index.html#typing_extensions.TypeAliasType)(
+&#x20;   "Content",
+&#x20;   "str | Mapping\[str, ContentValue | None] | Sequence\[ContentValue | None] | Asset",
+)`</pre>
+
+Text, an [asset](https://docs.typesafe.ai/sdk/python/api/types/assets.md#typesafe_sdk.Asset), or a mapping/sequence of [`ContentValue`](https://docs.typesafe.ai/sdk/python/api/types/common#typesafe_sdk.ContentValue) entries.
+
+Each asset is sent in the request's assets, with its unique reference in its place.

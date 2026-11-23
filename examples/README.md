@@ -31,7 +31,7 @@ cd typescript && npm install && npx tsx quickstart.ts
 
 | Example | What it shows | Docs |
 |---|---|---|
-| [`quickstart.py`](python/quickstart.py) | SDK basics with all three question types | [Quick start](../docs/02-quickstart.md) |
+| [`quickstart.py`](python/quickstart.py) | SDK basics with Choice, Score, and Noul | [Quick start](../docs/02-quickstart.md) |
 | [`http_no_sdk.py`](python/http_no_sdk.py) | Plain `requests` with retries and backoff | [API reference](../docs/09-api-reference.md) |
 | [`typed_response.py`](python/typed_response.py) | `response_model=` with pydantic, plus error handling | [Python SDK](../docs/10-sdk-python.md) |
 | [`async_batch.py`](python/async_batch.py) | Async client, a concurrency cap, and a Noul review band | [Noul](../docs/04-primitives/noul.md) |

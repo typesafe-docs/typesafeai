@@ -3,7 +3,7 @@
 > Community documentation and code snippets for **TypeSafe AI**: the System One API and its flagship model, **Jev**.
 > Everything here comes from the official docs at **<https://docs.typesafe.ai/>**. When this repo and the official docs disagree, the official docs are right.
 
-TypeSafe's models don't generate text. You send a **state** (the content to judge) and a set of typed **questions**. You get back **typed answers**: a choice, a score, or a probability, along with the full probability distribution and a **confidence** value. Your code can branch on them, sort by them, and route with them directly. There's no prompt-to-JSON parsing.
+TypeSafe's models don't generate text. You send a **state** (the content to judge) and a set of typed **questions**. You get back **typed answers**: a choice, a score, a probability, or a bounding box in an image, along with the full probability distribution and a **confidence** value. Your code can branch on them, sort by them, and route with them directly. There's no prompt-to-JSON parsing.
 
 ```text
  state + questions ──(one request)──▶  Jev (evaluates every question in parallel)
@@ -28,14 +28,16 @@ TypeSafe's models don't generate text. You send a **state** (the content to judg
 | 4.2 | [Score](docs/04-primitives/score.md) | Place the state on ordered levels |
 | 4.3 | [Noul](docs/04-primitives/noul.md) | Probability that a yes/no statement is true |
 | 4.4 | [Advanced: structure](docs/04-primitives/advanced-structure.md) | JSON instructions, rubrics, walking a taxonomy, structured criteria |
+| 4.5 | [Box](docs/04-primitives/box.md) | Where something is in an image (Jev 1.14) |
+| 4.6 | [Images](docs/04-primitives/images.md) | PNG and JPEG in state, instructions, or criteria |
 | 5 | [Confidence](docs/05-confidence.md) | What confidence means, the formulas, thresholds that scale with risk |
 | 6 | [How to build with TypeSafe](docs/06-building-with-typesafe.md) | Eight design steps, spam and tool-trace decomposition, a full triage workflow |
-| 7 | [Patterns](docs/07-patterns.md) | Speculative fan-out, confidence-gated routing, composite scoring, intent routing |
-| 8 | [Cookbooks overview](docs/08-cookbooks.md) | The 20 official recipes summarized, each with its core snippet |
+| 7 | [Patterns](docs/07-patterns.md) | Speculative fan-out, Noul screens, companion Nouls, routing by confidence and by probability, composite scoring |
+| 8 | [Cookbooks overview](docs/08-cookbooks.md) | The 27 official recipes and 3 demos summarized, each with its core snippet |
 | 9 | [HTTP API reference](docs/09-api-reference.md) | `POST /v1/systemone`, `GET /v1/models`, schemas, errors, DIY retries |
-| 10 | [Python SDK guide](docs/10-sdk-python.md) | Sync and async, typed responses, retries, errors, gateways, HTTP/2 |
-| 11 | [JavaScript / TypeScript SDK guide](docs/11-sdk-javascript.md) | `choice()`, `noul()`, `score()`, inferred types, `APIPromise`, errors |
-| 12 | [Models, limits & jaggedness](docs/12-models.md) | Jev 1.13, aliases, pricing, rate limits, the 9 known failure modes |
+| 10 | [Python SDK guide](docs/10-sdk-python.md) | Sync and async, typed responses, images and Box, retries, errors, gateways, performance |
+| 11 | [JavaScript / TypeScript SDK guide](docs/11-sdk-javascript.md) | `choice()`, `noul()`, `score()`, `box()`, images, inferred types, `APIPromise`, errors |
+| 12 | [Models, limits & jaggedness](docs/12-models.md) | Jev 1.14 and 1.13, aliases, pricing, context and long context, rate limits, the 9 known failure modes |
 | 13 | [Agent skill](docs/13-agent-skill.md) | Teaching Claude Code, Codex, and other agents to write TypeSafe code |
 | 14 | [Cheat sheet](docs/14-cheatsheet.md) | Everything on one page |
 | 15 | [FAQ & troubleshooting](docs/15-faq.md) | Common questions and pitfalls, each with a code fix |
@@ -44,20 +46,21 @@ TypeSafe's models don't generate text. You send a **state** (the content to judg
 
 | Area | Recipes |
 |---|---|
-| LLMs and agents | [Function calling](docs/cookbooks/function_calling.md) · [Skill suggestion](docs/cookbooks/skill_suggestion.md) · [LLM guardrails](docs/cookbooks/llm_guardrails.md) · [Citation check](docs/cookbooks/citation_check.md) · [Classifying RAG passages](docs/cookbooks/classifying_rag_passages.md) · [Simple memory system](docs/cookbooks/basic_memory.md) |
+| LLMs and agents | [Function calling](docs/cookbooks/function_calling.md) · [Skill suggestion](docs/cookbooks/skill_suggestion.md) · [LLM guardrails](docs/cookbooks/llm_guardrails.md) · [Citation check](docs/cookbooks/citation_check.md) · [Verifying LLM answers](docs/cookbooks/verify_llm_outputs.md) · [Classifying RAG passages](docs/cookbooks/classifying_rag_passages.md) · [Simple memory system](docs/cookbooks/basic_memory.md) |
 | Classification | [Hierarchical](docs/cookbooks/hierarchical_classification.md) · [Using confidence](docs/cookbooks/classification_using_confidence.md) · [Twitch chat filter](docs/cookbooks/twitch_chat_filter.md) |
-| Extraction | [SDE cascade](docs/cookbooks/sde_cascade.md) · [Date extraction](docs/cookbooks/date_extraction_cookbook.md) · [Pre-parsed values](docs/cookbooks/pre_parsed_value_extraction_cookbook.md) · [Structure recovery](docs/cookbooks/autoformat.md) |
-| Search and matching | [Re-ranking](docs/cookbooks/rerank_typesafe.md) · [Line-by-line search](docs/cookbooks/semantic_find.md) · [Entity alignment](docs/cookbooks/entity_alignment.md) |
-| Techniques | [Self-consistency: nouls](docs/cookbooks/consistency_noul_cookbook.md) · [Self-consistency: choices](docs/cookbooks/consistency_choice_cookbook.md) · [Parallel questions](docs/cookbooks/parallel_questions.md) · [Autoresearch features](docs/cookbooks/autoresearch_feature_discovery.md) |
+| Extraction | [SDE cascade](docs/cookbooks/sde_cascade.md) · [Date extraction](docs/cookbooks/date_extraction_cookbook.md) · [Pre-parsed values](docs/cookbooks/pre_parsed_value_extraction_cookbook.md) · [Structure recovery](docs/cookbooks/autoformat.md) · [Shopping cart](docs/cookbooks/cart_from_primitives.md) |
+| Search and matching | [Re-ranking](docs/cookbooks/rerank_typesafe.md) · [Infinite cardinality choice](docs/cookbooks/infinite_cardinality_choice.md) · [Line-by-line search](docs/cookbooks/semantic_find.md) · [Entity alignment](docs/cookbooks/entity_alignment.md) · [Intelliprompter](docs/cookbooks/intelliprompter.md) |
+| Techniques | [Self-consistency: choices](docs/cookbooks/consistency_choice_cookbook.md) · [Self-consistency: nouls](docs/cookbooks/consistency_noul_cookbook.md) · [Parallel questions](docs/cookbooks/parallel_questions.md) · [Autoresearch features](docs/cookbooks/autoresearch_feature_discovery.md) |
+| Image processing | [Scanned vaccination record](docs/cookbooks/reading_scanned_documents.md) · [OCR confidence and bounding boxes](docs/cookbooks/ocr_confidence_bounding_boxes.md) · [Feeder-cam visit log](docs/cookbooks/feeder_watch.md) |
 
 ### Full SDK API reference (generated from the official docs)
 
-- **Python** (`typesafe-sdk`): [index](docs/reference/python/README.md) · [usage](docs/reference/python/usage.md) · [sync client](docs/reference/python/sync-client.md) · [async client](docs/reference/python/async-client.md) · [questions](docs/reference/python/questions.md) · [responses](docs/reference/python/responses.md) · [retries](docs/reference/python/retries.md) · [exceptions](docs/reference/python/exceptions.md) · [constants](docs/reference/python/constants.md) · [changelog](docs/reference/python/changelog.md)
+- **Python** (`typesafe-sdk`): [index](docs/reference/python/README.md) · [basic usage](docs/reference/python/usage-basic.md) · [advanced usage](docs/reference/python/usage-advanced.md) · [sync client](docs/reference/python/sync-client.md) · [async client](docs/reference/python/async-client.md) · [questions](docs/reference/python/questions.md) · [assets](docs/reference/python/assets.md) · [responses](docs/reference/python/responses.md) · [retries](docs/reference/python/retries.md) · [exceptions](docs/reference/python/exceptions.md) · [constants](docs/reference/python/constants.md) · [changelog](docs/reference/python/changelog.md)
 - **JavaScript** (`@typesafe-ai/sdk`): [index](docs/reference/javascript/README.md) · [classes](docs/reference/javascript/classes.md) · [interfaces](docs/reference/javascript/interfaces.md) · [type aliases](docs/reference/javascript/type-aliases.md) · [functions](docs/reference/javascript/functions.md) · [variables](docs/reference/javascript/variables.md) · [changelog](docs/reference/javascript/changelog.md)
 
 ### Python and TypeScript, side by side
 
-Every code example in the guide comes in **Python** and **TypeScript**, labeled and next to each other. The cookbook snippets also have TypeScript ports, marked as ports because the official cookbooks are Python-only. All 118 TypeScript snippets in the guide are **type-checked against the real `@typesafe-ai/sdk` in CI**, and the 47 self-contained ones also run against the offline mock ([`tools/check_doc_snippets.py`](tools/check_doc_snippets.py)).
+Every code example in the guide comes in **Python** and **TypeScript**, labeled and next to each other. The cookbook snippets also have TypeScript ports, marked as ports because the official cookbooks are Python-only. All 137 TypeScript snippets in the guide are **type-checked against the real `@typesafe-ai/sdk` in CI**, and the 62 self-contained ones also run against the offline mock ([`tools/check_doc_snippets.py`](tools/check_doc_snippets.py)).
 
 ### Runnable examples
 
@@ -65,15 +68,16 @@ Every code example in the guide comes in **Python** and **TypeScript**, labeled 
 
 ---
 
-## The three primitives at a glance
+## The four primitives at a glance
 
 | Question type | Asks | Returns |
 |---|---|---|
 | [**Choice**](docs/04-primitives/choice.md) | Which of these options? | `choice`, `probabilities`, `confidence` |
 | [**Score**](docs/04-primitives/score.md) | Which level on this rubric? | `score`, `legend`, `probabilities`, `confidence` |
 | [**Noul**](docs/04-primitives/noul.md) | Is this statement true? | `noul` (probability of yes, 0–1) |
+| [**Box**](docs/04-primitives/box.md) | Where is it in this image? | `box` (`top`, `bottom`, `left`, `right`), `confidence` |
 
-You can mix all three in one call. Each question is evaluated **independently and in parallel** against the same state, so adding questions barely changes latency.
+You can mix them in one call. Each question is evaluated **independently and in parallel** against the same state, so adding questions barely changes latency.
 
 ---
 
@@ -121,7 +125,7 @@ curl -X POST https://api.typesafe.ai/v1/systemone \
 EOF
 ```
 
-Response:
+Response (recorded on `jev-1.13.0`; `jev-latest` now answers as `jev-1.14.0`, and values can change between releases):
 
 ```json
 {
@@ -203,8 +207,8 @@ console.log(answers.category.choice, answers.urgency.score, answers.refund.noul)
 1. **Ask atomic questions.** Each question should be a snap judgment that a knowledgeable person could make in a second. Break big judgments into parts and [combine them in code](docs/07-patterns.md#composite-scoring).
 2. **Ask a lot of questions per call.** They run in parallel. [Speculative](docs/07-patterns.md#speculative-fan-out) questions cost almost nothing.
 3. **Keep control flow in code.** Jev makes narrow decisions. Your code owns the workflow, the rules, and the side effects.
-4. **Route on confidence.** Act automatically when confidence is high, confirm when it's medium, and escalate when it's low. [Scale your thresholds with risk](docs/05-confidence.md#thresholds-scale-with-risk).
-5. **Don't ask Jev to do math, count, compare dates, or generate text.** Do those in code. See [Jaggedness](docs/12-models.md#known-failure-modes-jev-113).
+4. **Route on probability.** Threshold the probability your code acts on (a Noul's value, or `probabilities[choice]` for a Choice), give the uncertain band its own path, and [scale thresholds with risk](docs/07-patterns.md#routing-by-probability). Use `confidence` to check whether a Score is settled ([When to act on confidence](docs/05-confidence.md#when-to-act-on-confidence)).
+5. **Don't ask Jev to do math, count, compare dates, or generate text.** Do those in code. See [Jaggedness](docs/12-models.md#known-failure-modes).
 
 ---
 
@@ -216,7 +220,7 @@ console.log(answers.category.choice, answers.urgency.score, answers.refund.noul)
 ├── docs/
 │   ├── 01-introduction.md … 15-faq.md   ← the guide (hand-written, curated)
 │   ├── 04-primitives/                    ← Choice, Score, Noul, structure
-│   ├── cookbooks/                        ← 20 full recipes (converted from the official notebooks)
+│   ├── cookbooks/                        ← 27 full recipes (converted from the official notebooks)
 │   ├── reference/
 │   │   ├── python/                       ← full typesafe-sdk API reference
 │   │   └── javascript/                   ← full @typesafe-ai/sdk API reference

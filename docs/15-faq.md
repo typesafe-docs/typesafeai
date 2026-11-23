@@ -35,7 +35,7 @@ const good = { refund: noul("Does the customer explicitly ask for a refund or cr
 
 ### Should I make one request per question?
 
-No. Questions run in parallel, so batching is about 12× cheaper and 10× faster, with identical answers. See [Parallel questions](cookbooks/parallel_questions.md).
+No. Questions run in parallel, so batching is about 12× cheaper and 12× faster, with identical answers. See [Parallel questions](cookbooks/parallel_questions.md).
 
 **Python**
 
@@ -69,15 +69,16 @@ Only when you **can't build** the second request without the first answer: you n
 
 ### How many questions can one request hold? How big can the state be?
 
-There's no documented limit on the number of questions. The limits are in tokens (Jev 1.13):
+There's no separate limit on the number of questions. The limits are in tokens (Jev 1.14 and 1.13):
 
 | Limit | Value |
 |---|---|
-| Whole request | 64k tokens |
-| `state` plus the single longest question | 32k tokens |
+| Whole request (state plus all questions) | 64k tokens |
+| `state` plus any one question | 32k tokens |
+| Both, with `TypeSafe-Danger-Zone-Long-Context: true` | 262k tokens (slower, less accurate; [Long context](12-models.md#long-context)) |
 | Choice options | ≤ 255 per question |
 | Score levels | 2–10 per question |
-| Throughput | 100K tokens/s and 80 requests/s (adjusted dynamically) |
+| Throughput | Set per organization; see your [rate limits page](https://console.typesafe.ai/rate-limits) |
 
 Questions are evaluated independently and in parallel, so adding questions barely changes latency. Each one adds only its own tokens. Watch `usage.input_tokens` to see how close a request is to the budget:
 
@@ -125,14 +126,14 @@ If a state is too large, filter it in code first; accuracy also drops as irrelev
 
 ### How fast is Jev?
 
-Most queries finish in **about 100 ms**. Adding questions to a request barely changes that, because they're evaluated in parallel. Numbers measured in the official cookbooks, as round trips from the client:
+Most queries finish in **about 100 ms**. Adding questions to a request barely changes that, because they're evaluated in parallel. Numbers measured in the official cookbooks on Jev 1.14, as round trips from the client:
 
 | Request | Round trip | Source |
 |---|---|---|
-| One Choice rubric call | 114 ms mean (LLMs on the same task: 826 ms to 13 s) | [Consistency: Choice](cookbooks/consistency_choice_cookbook.md) |
-| One Noul rubric call | 111 ms mean | [Consistency: Noul](cookbooks/consistency_noul_cookbook.md) |
-| 16 Noul questions in one request | 0.32 s | [Autoformat](cookbooks/autoformat.md) |
-| 13 questions over a ~54,000-character article | 0.27 s (13 separate calls: 2.71 s) | [Parallel questions](cookbooks/parallel_questions.md) |
+| One Choice rubric call | 103 ms mean (LLMs on the same task: 2.8 to 18.2 s) | [Consistency: Choice](cookbooks/consistency_choice_cookbook.md) |
+| One Noul rubric call | 97 ms mean (LLMs: 1.7 to 16.4 s) | [Consistency: Noul](cookbooks/consistency_noul_cookbook.md) |
+| 16 Noul questions in one request | 0.24 s | [Autoformat](cookbooks/autoformat.md) |
+| 13 questions over a ~54,000-character article | 0.24 s (13 separate calls: 2.81 s) | [Parallel questions](cookbooks/parallel_questions.md) |
 
 Your own numbers depend on network distance, state size, and retries. Measure the round trip around the call:
 
@@ -191,7 +192,7 @@ const client = new TypeSafeClient();
 const QUESTIONS = { billing: noul("Is `message` about billing?") };
 const sample = { message: "I was charged twice for order A-104 and need the duplicate refunded." };
 
-const used = (await client.systemOne({ state: sample, questions: QUESTIONS })).usage.input_tokens;
+const used = (await client.systemOne({ state: sample, questions: QUESTIONS })).usage.input_tokens ?? 0; // null when not reported
 const tokensPerChar = used / sample.message.length; // rough: includes the fixed question overhead
 console.log(`${used} input tokens; a 20,000-character message ≈ ${Math.round(20_000 * tokensPerChar)} tokens`);
 ```
@@ -200,9 +201,13 @@ Every token in `state`, `instructions`, and `criteria` counts, including example
 
 ### Which models are there? Where does it run?
 
-**Jev** is the only System One model: `jev-latest` and `jev-preview` both point to `jev-1.13.0`. `GET /v1/models` lists what your account can use, with a description and release date for each (Python: `client.models.list().models`; TypeScript: `client.models.list()`).
+**Jev** is the only System One model family. The current versions are `jev-1.14.0` (released 2026-10-14) and `jev-1.13.0`; `jev-latest` and `jev-preview` both point to `jev-1.14.0`. `GET /v1/models` lists what your account can use (currently the aliases; versioned IDs work whether or not they're listed), with a description and release date for each (Python: `client.models.list().models`; TypeScript: `client.models.list()`).
 
-Jev runs as a hosted model. You reach it through the TypeSafe API or an [AI gateway](10-sdk-python.md#ai-gateways-custom-base_url) (OpenRouter, Vercel AI Gateway, Pydantic AI Gateway). The same weights serve every account; there's no per-account fine-tuning. The official docs don't offer downloadable weights or self-hosting, and they don't publish hosting regions. For a model's behavior, the closest thing to a model card is [Models](12-models.md) plus its [known failure modes](12-models.md#known-failure-modes-jev-113).
+Jev runs as a hosted model. You reach it through the TypeSafe API or an [AI gateway](10-sdk-python.md#ai-gateways-custom-base_url) (OpenRouter, Vercel AI Gateway, Pydantic AI Gateway). The same weights serve every account; there's no per-account fine-tuning. The official docs don't offer downloadable weights or self-hosting, and they don't publish hosting regions. For a model's behavior, the closest thing to a model card is [Models](12-models.md) plus its [known failure modes](12-models.md#known-failure-modes).
+
+### Can Jev read images or find things in them?
+
+Yes, as an experimental preview. PNG and JPEG images can go in `state`, `instructions`, or `criteria` on Jev 1.14 and 1.13, and a [Box](04-primitives/box.md) question (Jev 1.14) returns where something is as four edges. Send `TypeSafe-Danger-Zone-Images: true` with each such request; images are billed as ordinary input tokens. See [Images](04-primitives/images.md) for formats, size limits, and how to send them. Audio and video aren't supported.
 
 ### What does a Noul probability near 0.5 mean?
 
@@ -274,11 +279,11 @@ Use contrastive `what`/`not_for`/`examples` objects. See [Choice → Structured 
 
 ### The answer changes when I reorder options
 
-That's a known Jev 1.13 edge: it can lean toward the first option. Shuffle the options and compare. See [Models → Choice option order](12-models.md#8-choice-option-order).
+That's a known Jev edge: it can lean toward the first option. Shuffle the options and compare. See [Models → Choice option order](12-models.md#8-choice-option-order).
 
 ### Can Jev count, do math, or compare dates?
 
-Not reliably. Keep those in code: ask one Noul per item and add the results up yourself, or extract date **parts** with Choices and compare them in code. See [Jaggedness](12-models.md#known-failure-modes-jev-113) and [Date extraction](cookbooks/date_extraction_cookbook.md).
+Not reliably. Keep those in code: ask one Noul per item and add the results up yourself, or extract date **parts** with Choices and compare them in code. See [Jaggedness](12-models.md#known-failure-modes) and [Date extraction](cookbooks/date_extraction_cookbook.md).
 
 ### Can Jev extract a value, like an email address or an amount?
 
@@ -323,7 +328,7 @@ No. If you only need the best option, use `choice`. If you have a statistical me
 **Python**
 
 ```python
-client = TypeSafeClient(model="jev-1.13.0")
+client = TypeSafeClient(model="jev-1.14.0")
 ```
 
 **TypeScript**
@@ -332,12 +337,12 @@ client = TypeSafeClient(model="jev-1.13.0")
 import { TypeSafeClient } from "@typesafe-ai/sdk";
 -->
 ```ts
-const client = new TypeSafeClient({ defaultModel: "jev-1.13.0" });
+const client = new TypeSafeClient({ defaultModel: "jev-1.14.0" });
 ```
 
 ### I'm getting 429s
 
-You've hit the rate limit (tokens per second or requests per second). The SDKs retry automatically with backoff and honor `retry-after`. Tune the retries, or cap your concurrency:
+You've hit your organization's rate limit (tokens per second or requests per second); the current numbers are on the console's [rate limits page](https://console.typesafe.ai/rate-limits), and the [rate limit increase request form](https://support.typesafe.ai/forms/rate-limit-increase-request) asks for more. The SDKs retry automatically with backoff and honor `retry-after`. Tune the retries, or cap your concurrency:
 
 **Python**
 
@@ -423,7 +428,7 @@ They're on the [Legal](https://docs.typesafe.ai/legal) page, as three documents:
 | Master Customer Agreement | The general terms for your account |
 | Privacy Policy | What data is collected and how it's used, including the commitment not to train models on user data |
 
-Zero data retention (ZDR) is available to enterprise customers through sales@typesafe.ai. The docs don't publish hosting regions or data-residency options, so ask sales if you need them. See [Models → Data handling](12-models.md#data-handling) for what to keep out of the request in the first place.
+Zero data retention (ZDR) is available to enterprise customers through the [support request form](https://support.typesafe.ai/forms/support-request). The docs don't publish hosting regions or data-residency options; ask through the same form if you need them. See [Models → Data handling](12-models.md#data-handling) for what to keep out of the request in the first place.
 
 ### Can text in the state steer the answer (prompt injection)?
 
@@ -469,7 +474,7 @@ if (answers.injection.noul > 0.5) console.log("flag for review"); // never act o
 
 ### Is non-English text supported?
 
-Yes, but accuracy is best in English, and a confidence threshold tuned on English doesn't carry over. Measure accuracy above your threshold per language before trusting it. See [Models → Language support and calibrating thresholds](12-models.md#language-support-and-calibrating-thresholds), which has code for that check.
+Yes. Jev 1.14 improved multilingual support, but accuracy still varies by language, and a confidence threshold tuned on one language doesn't carry over. Measure accuracy above your threshold per language before trusting it. See [Models → Language support and calibrating thresholds](12-models.md#language-support-and-calibrating-thresholds), which has code for that check.
 
 ### The agent invents request or response fields
 

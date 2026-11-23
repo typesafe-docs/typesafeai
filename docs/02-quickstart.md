@@ -10,9 +10,10 @@ There are four ways in: **try** it in the Playground, **call** the HTTP API, **c
 |---|---|
 | Sign in, try requests in the browser | <https://console.typesafe.ai/playground> |
 | Create an API key | <https://console.typesafe.ai/keys> |
-| Price (Jev 1.13) | $0.042 per million **input** tokens; output tokens are free ([cost math](12-models.md#rough-cost-math)) |
-| Rate limits | 100K tokens/s and 80 requests/s, adjusted dynamically ([limits](12-models.md#current-model-jev-113-jev-1130)) |
-| Higher limits, enterprise terms, zero data retention | sales@typesafe.ai |
+| Price (Jev 1.14 and 1.13) | $0.042 per million **input** tokens; output tokens are free ([cost math](12-models.md#rough-cost-math)) |
+| Rate limits | Set per organization; yours are on the [rate limits page](https://console.typesafe.ai/rate-limits) ([limits](12-models.md#rate-limits)) |
+| Higher rate limits | [Rate limit increase request form](https://support.typesafe.ai/forms/rate-limit-increase-request) |
+| Enterprise terms, zero data retention | [Support request form](https://support.typesafe.ai/forms/support-request) |
 
 Both SDKs and every example here read the key from `TYPESAFE_API_KEY`:
 
@@ -40,7 +41,7 @@ export TYPESAFE_API_KEY="your-key-here"
    }
    ```
 
-4. Add more questions, mixing Noul, Choice, and Score, and see every result at once.
+4. Add more questions, mixing Noul, Choice, and Score, and see every result at once. (The fourth type, [Box](04-primitives/box.md), works on images.)
 
 ## Call it: the HTTP API
 
@@ -73,7 +74,7 @@ curl -X POST https://api.typesafe.ai/v1/systemone \
 EOF
 ```
 
-### Full request: all three types
+### Full request: Choice, Score, and Noul
 
 ```json
 {
@@ -107,6 +108,8 @@ EOF
 ```
 
 ### Response
+
+These are example results recorded on `jev-1.13.0`. Today `jev-latest` answers as `jev-1.14.0`, and values can change between Jev releases.
 
 ```json
 {
@@ -182,8 +185,8 @@ Requires Python 3.10 or later.
 
 ```bash
 pip install typesafe-sdk     # or: uv add typesafe-sdk
-# optional HTTP/2 support:
-pip install 'typesafe-sdk[http2]'
+# optional extras: HTTP/2, Pillow images, zstd compression on Python 3.13 and earlier
+pip install 'typesafe-sdk[http2,pil,zstd]'
 ```
 
 The client reads `TYPESAFE_API_KEY` from the environment and calls `jev-latest` by default.
@@ -256,7 +259,7 @@ Full guide: [Python SDK](10-sdk-python.md).
 
 ## Code it: the JavaScript / TypeScript SDK
 
-Requires Node.js 20 or later.
+Requires Node.js 22 or later. To run a `.ts` file directly with `node`, use Node.js 22.18 or later, and set `"type": "module"` in `package.json` (`npm pkg set type=module`).
 
 ```bash
 npm install @typesafe-ai/sdk

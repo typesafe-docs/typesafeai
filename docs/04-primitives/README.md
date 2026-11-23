@@ -9,8 +9,9 @@ Primitives come in pairs: a **question** defines one judgment about a [state](..
 | **Choice** | Which of these options? | `choice`, `probabilities`, `confidence` | [choice.md](choice.md) |
 | **Score** | Which level? | `score`, `legend`, `probabilities`, `confidence` | [score.md](score.md) |
 | **Noul** | Is this true? | `noul` (0 to 1) | [noul.md](noul.md) |
+| **Box** | Where is it in this image? | `box` (`top`, `bottom`, `left`, `right`), `confidence` | [box.md](box.md) (Jev 1.14, images) |
 
-See also: [Advanced: structure](advanced-structure.md).
+See also: [Advanced: structure](advanced-structure.md) · [Images](images.md): any question type can read PNG and JPEG images.
 
 ## Ask for one snap judgment per question
 
@@ -24,9 +25,9 @@ The second one needs slow reasoning. That's your cue to break the task into smal
 | Field | Meaning |
 |---|---|
 | **ID** (map key) | A key you choose, like `refund_requested`. It's **never sent to the model**. |
-| `type` | `choice`, `score`, or `noul` |
+| `type` | `choice`, `score`, `noul`, or `box` |
 | `instructions` | The question itself, or a statement to judge. A string, object, or array. |
-| `criteria` | Choice: a map of options. Score: an ordered list of levels. Noul: optional `{true, false}` descriptions. |
+| `criteria` | Choice: a map of options. Score: an ordered list of levels. Noul: optional `{true, false}` descriptions. Box: none. |
 
 **Python**
 
@@ -54,9 +55,10 @@ const questions = {
 
 ## Choosing a question type
 
-- **Choice:** the answer is one of a known set of options with no order between them, such as a department, a document type, or a programming language. Add an `other` or `none of the above` option when the list might not cover every input.
+- **Choice:** the answer is one of a known set of options with no order between them, such as a department, a document type, or a programming language. When the list might not cover every input, add a [companion Noul](../07-patterns.md#companion-noul) that asks whether any option fits, and act on the Choice only when it says yes. In TypeSafe's tests this works better than an `other` option, which competes with your real options for probability.
 - **Score:** the answer sits on a spectrum and you can describe each point, such as bug severity, frustration, or skill level.
 - **Noul:** a clean yes/no where the probability itself is the useful signal, such as "contains PII?", "requests a refund?", or "mentions distributed systems?".
+- **Box:** you need *where* something is in an image, such as the damage on a car or the signature on a form. Pair it with a Noul that asks whether the thing is there at all.
 
 > A Noul of 0.5 means yes and no are equally likely. It does **not** mean "medium". To measure *how much* Python someone knows, use a Score with levels like no experience → some familiarity → daily use → deep expertise.
 
@@ -69,6 +71,7 @@ When two types both seem to fit, pick the one your code can **act on directly**:
 | Choice | `choice`, `probabilities`, `confidence` | The selected option, the distribution over all options, and how peaked that distribution is |
 | Score | `score`, `legend`, `probabilities`, `confidence` | A position along your levels (it can fall between two), the levels by number, and the distribution |
 | Noul | `noul` | P(yes). Near 1 is a strong yes, near 0 a strong no, near 0.5 unsure. There's no separate confidence. |
+| Box | `box`, `confidence` | Four edges, each a fraction of the image's width or height from 0 to 1. A Box always returns a location, so pair it with a Noul that asks whether the target is there. |
 
 Two properties make answers composable:
 
@@ -185,7 +188,11 @@ console.log(answers.frustration.score);
 
 ### Speculative questions
 
-Ask every question your code *might* need, including ones that only matter for some inputs, and let the code ignore the rest. In the [Parallel questions cookbook](../08-cookbooks.md#parallel-questions), batching 13 questions into one call was about **12× cheaper** and **10× faster** than 13 separate calls, with identical answers. See [Speculative fan-out](../07-patterns.md#speculative-fan-out).
+Ask every question your code *might* need, including ones that only matter for some inputs, and let the code ignore the rest. In the [Parallel questions cookbook](../08-cookbooks.md#parallel-questions), batching 13 questions into one call was **12.2× cheaper** and **11.8× faster** than 13 separate calls, with identical answers. See [Speculative fan-out](../07-patterns.md#speculative-fan-out).
+
+### How many questions you can ask
+
+There's no limit on the number of questions. What limits a request is its size: it has to fit the per-request and per-question [context limits](../12-models.md#context-length). If it doesn't, spread the questions across several requests with the same `state`.
 
 ### Split complex judgments
 

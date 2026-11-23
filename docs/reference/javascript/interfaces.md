@@ -2,6 +2,9 @@
 
 [← JavaScript reference](README.md) · [JS SDK guide](../../11-sdk-javascript.md) · Official: <https://docs.typesafe.ai/sdk/javascript/api>
 
+- [BoxCoordinates](#interface-boxcoordinates)
+- [BoxQuestion](#interface-boxquestion)
+- [BoxResponse](#interface-boxresponse)
 - [ChoiceQuestion](#interface-choicequestion)
 - [ChoiceResponse](#interface-choiceresponse)
 - [Logger](#interface-logger)
@@ -15,11 +18,121 @@
 - [ScoreQuestion](#interface-scorequestion)
 - [ScoreResponse](#interface-scoreresponse)
 - [SystemOneRequest](#interface-systemonerequest)
-- [SystemOneRequestPayload](#interface-systemonerequestpayload)
 - [SystemOneResult](#interface-systemoneresult)
+- [TextWithAssets](#interface-textwithassets)
 - [TypeSafeClientConfig](#interface-typesafeclientconfig)
 - [Usage](#interface-usage)
 - [WithResponse](#interface-withresponse)
+
+
+---
+
+## Interface: BoxCoordinates
+
+A box's edges as fractions of the image's height (`top`, `bottom`) and width (`left`, `right`).
+
+### Properties
+
+#### bottom
+
+```ts
+readonly bottom: number;
+```
+
+Bottom edge, as a fraction of image height from the top, from zero to one.
+
+***
+
+#### left
+
+```ts
+readonly left: number;
+```
+
+Left edge, as a fraction of image width from the left, from zero to one.
+
+***
+
+#### right
+
+```ts
+readonly right: number;
+```
+
+Right edge, as a fraction of image width from the left, from zero to one.
+
+***
+
+#### top
+
+```ts
+readonly top: number;
+```
+
+Top edge, as a fraction of image height from the top, from zero to one.
+
+
+
+---
+
+## Interface: BoxQuestion
+
+A question that locates what its instructions describe in the request's image.
+
+### Properties
+
+#### instructions?
+
+```ts
+optional instructions?: EntryType;
+```
+
+What to locate, as text, an asset, a JSON object, or an array; optional or `null`.
+
+***
+
+#### type
+
+```ts
+type: "box";
+```
+
+
+
+---
+
+## Interface: BoxResponse
+
+The answer to a `box` question.
+
+### Properties
+
+#### box
+
+```ts
+readonly box: BoxCoordinates;
+```
+
+Where the instructions' subject is in the image.
+
+***
+
+#### confidence
+
+```ts
+readonly confidence: number | null;
+```
+
+Confidence in the box, from zero to one, or `null` when the API didn't report it.
+
+***
+
+#### type
+
+```ts
+readonly type: "box";
+```
+
 
 
 ---
@@ -33,11 +146,9 @@ A question that selects between named alternatives.
 
 #### T
 
-`T` *extends* [`ChoiceCriteria`](type-aliases.md#type-alias-choicecriteria) = [`ChoiceCriteria`](type-aliases.md#type-alias-choicecriteria)
+`T` *extends* [`ChoiceCriteria`](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/ChoiceCriteria) = [`ChoiceCriteria`](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/ChoiceCriteria)
 
 ### Properties
-
-<a id="sdk-criteria"></a>
 
 #### criteria
 
@@ -45,11 +156,9 @@ A question that selects between named alternatives.
 criteria: T;
 ```
 
-Descriptions of the available outcomes.
+Descriptions of the available outcomes; at least one label is required.
 
 ***
-
-<a id="sdk-instructions"></a>
 
 #### instructions?
 
@@ -60,8 +169,6 @@ optional instructions?: EntryType;
 The question as text, a JSON object, or an array; optional or `null`.
 
 ***
-
-<a id="sdk-type"></a>
 
 #### type
 
@@ -82,11 +189,9 @@ A selected label and its probabilities.
 
 #### T
 
-`T` *extends* [`ChoiceCriteria`](type-aliases.md#type-alias-choicecriteria) = [`ChoiceCriteria`](type-aliases.md#type-alias-choicecriteria)
+`T` *extends* [`ChoiceCriteria`](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/ChoiceCriteria) = [`ChoiceCriteria`](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/ChoiceCriteria)
 
 ### Properties
-
-<a id="sdk-choice"></a>
 
 #### choice
 
@@ -98,8 +203,6 @@ The selected label.
 
 ***
 
-<a id="sdk-confidence"></a>
-
 #### confidence
 
 ```ts
@@ -110,8 +213,6 @@ Reported confidence in the selected label.
 
 ***
 
-<a id="sdk-probabilities"></a>
-
 #### probabilities
 
 ```ts
@@ -121,8 +222,6 @@ readonly probabilities: { readonly [label in string | number | symbol]: number }
 Probabilities keyed by label.
 
 ***
-
-<a id="sdk-type"></a>
 
 #### type
 
@@ -139,8 +238,6 @@ readonly type: "choice";
 Log methods accepting a message and structured values; compatible with `console`.
 
 ### Methods
-
-<a id="sdk-debug"></a>
 
 #### debug()
 
@@ -164,8 +261,6 @@ debug(message, ...args): void;
 
 ***
 
-<a id="sdk-error"></a>
-
 #### error()
 
 ```ts
@@ -188,8 +283,6 @@ error(message, ...args): void;
 
 ***
 
-<a id="sdk-info"></a>
-
 #### info()
 
 ```ts
@@ -211,8 +304,6 @@ info(message, ...args): void;
 `void`
 
 ***
-
-<a id="sdk-warn"></a>
 
 #### warn()
 
@@ -244,8 +335,6 @@ Metadata for an available model.
 
 ### Properties
 
-<a id="sdk-description"></a>
-
 #### description
 
 ```ts
@@ -254,8 +343,6 @@ readonly description: string;
 
 ***
 
-<a id="sdk-name"></a>
-
 #### name
 
 ```ts
@@ -263,8 +350,6 @@ readonly name: string;
 ```
 
 ***
-
-<a id="sdk-release_date"></a>
 
 #### release\_date
 
@@ -282,8 +367,6 @@ Access to the Models API resource.
 
 ### Methods
 
-<a id="sdk-list"></a>
-
 #### list()
 
 ```ts
@@ -296,11 +379,11 @@ List the models available to the account.
 
 ###### options?
 
-[`RequestOptions`](#interface-requestoptions) = `{}`
+[`RequestOptions`](https://docs.typesafe.ai/sdk/javascript/api/interfaces/RequestOptions) = `{}`
 
 ##### Returns
 
-[`APIPromise`](classes.md#class-apipromiset)\<[`ModelCard`](#interface-modelcard)\[]>
+[`APIPromise`](https://docs.typesafe.ai/sdk/javascript/api/classes/APIPromise)\<[`ModelCard`](https://docs.typesafe.ai/sdk/javascript/api/interfaces/ModelCard)\[]>
 
 
 
@@ -311,8 +394,6 @@ List the models available to the account.
 A yes/no question with optional descriptions for either outcome.
 
 ### Properties
-
-<a id="sdk-criteria"></a>
 
 #### criteria?
 
@@ -325,7 +406,7 @@ optional criteria?:
   | null;
 ```
 
-Optional descriptions of the yes and no outcomes.
+Descriptions of the yes and no outcomes; at least one is required when `instructions` is omitted or `null`.
 
 ##### Union Members
 
@@ -360,19 +441,15 @@ Description of the yes outcome.
 
 ***
 
-<a id="sdk-instructions"></a>
-
 #### instructions?
 
 ```ts
 optional instructions?: EntryType;
 ```
 
-The question as text, a JSON object, or an array; optional or `null`.
+The question as text, a JSON object, or an array; optional when `criteria` describes an outcome.
 
 ***
-
-<a id="sdk-type"></a>
 
 #### type
 
@@ -390,8 +467,6 @@ A yes/no answer.
 
 ### Properties
 
-<a id="sdk-noul"></a>
-
 #### noul
 
 ```ts
@@ -401,8 +476,6 @@ readonly noul: number;
 Probability of a yes answer, from zero to one.
 
 ***
-
-<a id="sdk-type"></a>
 
 #### type
 
@@ -434,8 +507,6 @@ Per-call options that override client settings.
 
 ### Properties
 
-<a id="sdk-headers"></a>
-
 #### headers?
 
 ```ts
@@ -445,8 +516,6 @@ optional headers?: Record<string, string>;
 Additional headers, merged over `defaultHeaders`.
 
 ***
-
-<a id="sdk-retry"></a>
 
 #### retry?
 
@@ -458,8 +527,6 @@ Retry overrides for this call; omitted fields inherit client settings.
 
 ***
 
-<a id="sdk-signal"></a>
-
 #### signal?
 
 ```ts
@@ -469,8 +536,6 @@ optional signal?: AbortSignal;
 Cancellation signal for the request and pending retries.
 
 ***
-
-<a id="sdk-timeout"></a>
 
 #### timeout?
 
@@ -490,8 +555,6 @@ Retry configuration. Partial overrides inherit unset fields from the client or S
 
 ### Properties
 
-<a id="sdk-apiconnectionerror"></a>
-
 #### apiConnectionError
 
 ```ts
@@ -501,8 +564,6 @@ readonly apiConnectionError: boolean;
 Retry connection failures, including interrupted response bodies (`APIConnectionError`). Default: true.
 
 ***
-
-<a id="sdk-apitimeouterror"></a>
 
 #### apiTimeoutError
 
@@ -514,8 +575,6 @@ Whether to retry `APITimeoutError`. Default: true.
 
 ***
 
-<a id="sdk-backoffinitialms"></a>
-
 #### backoffInitialMs
 
 ```ts
@@ -525,8 +584,6 @@ readonly backoffInitialMs: number;
 First backoff delay in milliseconds, doubled up to `backoffMaxMs`. Default: 500.
 
 ***
-
-<a id="sdk-backoffjitter"></a>
 
 #### backoffJitter
 
@@ -538,8 +595,6 @@ Fraction of each backoff delay randomly subtracted, from 0 to 1. Default: 0.25.
 
 ***
 
-<a id="sdk-backoffmaxms"></a>
-
 #### backoffMaxMs
 
 ```ts
@@ -549,8 +604,6 @@ readonly backoffMaxMs: number;
 Maximum backoff delay in milliseconds. Default: 5000.
 
 ***
-
-<a id="sdk-httpstatuses"></a>
 
 #### httpStatuses
 
@@ -562,8 +615,6 @@ HTTP status codes to retry. Default: 408, 429, and 500–599.
 
 ***
 
-<a id="sdk-maxretries"></a>
-
 #### maxRetries
 
 ```ts
@@ -574,8 +625,6 @@ Maximum retries after the initial attempt; `0` disables retries. Default: 2.
 
 ***
 
-<a id="sdk-maxretryafterms"></a>
-
 #### maxRetryAfterMs
 
 ```ts
@@ -585,8 +634,6 @@ readonly maxRetryAfterMs: number;
 Maximum server retry delay in milliseconds; longer delays use backoff. Default: 60000.
 
 ***
-
-<a id="sdk-respectretryafter"></a>
 
 #### respectRetryAfter
 
@@ -609,11 +656,9 @@ A question that assigns a score using an ordered rubric.
 
 #### T
 
-`T` *extends* [`ScoreCriteria`](type-aliases.md#type-alias-scorecriteria) = [`ScoreCriteria`](type-aliases.md#type-alias-scorecriteria)
+`T` *extends* [`ScoreCriteria`](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/ScoreCriteria) = [`ScoreCriteria`](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/ScoreCriteria)
 
 ### Properties
-
-<a id="sdk-criteria"></a>
 
 #### criteria
 
@@ -625,8 +670,6 @@ Descriptions of the available outcomes.
 
 ***
 
-<a id="sdk-instructions"></a>
-
 #### instructions?
 
 ```ts
@@ -636,8 +679,6 @@ optional instructions?: EntryType;
 The question as text, a JSON object, or an array; optional or `null`.
 
 ***
-
-<a id="sdk-type"></a>
 
 #### type
 
@@ -658,11 +699,9 @@ An expected score with its rubric and probabilities.
 
 #### T
 
-`T` *extends* [`ScoreCriteria`](type-aliases.md#type-alias-scorecriteria) = [`ScoreCriteria`](type-aliases.md#type-alias-scorecriteria)
+`T` *extends* [`ScoreCriteria`](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/ScoreCriteria) = [`ScoreCriteria`](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/ScoreCriteria)
 
 ### Properties
-
-<a id="sdk-confidence"></a>
 
 #### confidence
 
@@ -674,8 +713,6 @@ Reported confidence in the score.
 
 ***
 
-<a id="sdk-legend"></a>
-
 #### legend
 
 ```ts
@@ -685,8 +722,6 @@ readonly legend: ScoreLegend<T>;
 Rubric descriptions keyed by score.
 
 ***
-
-<a id="sdk-probabilities"></a>
 
 #### probabilities
 
@@ -698,8 +733,6 @@ Probabilities keyed by score.
 
 ***
 
-<a id="sdk-score"></a>
-
 #### score
 
 ```ts
@@ -709,8 +742,6 @@ readonly score: number;
 Expected score, which may fall between integer rubric levels.
 
 ***
-
-<a id="sdk-type"></a>
 
 #### type
 
@@ -729,19 +760,29 @@ State and named questions for `systemOne`.
 
 Additional properties on a request variable are forwarded, including `null` values.
 
-### Extended by
-
-* [`SystemOneRequestPayload`](#interface-systemonerequestpayload)
-
 ### Type Parameters
 
 #### Q
 
-`Q` *extends* [`Questions`](#interface-questions) = [`Questions`](#interface-questions)
+`Q` *extends* [`Questions`](https://docs.typesafe.ai/sdk/javascript/api/interfaces/Questions) = [`Questions`](https://docs.typesafe.ai/sdk/javascript/api/interfaces/Questions)
 
 ### Properties
 
-<a id="sdk-model"></a>
+#### assets?
+
+```ts
+optional assets?: Record<string, Image>;
+```
+
+References mapped to assets, for referencing assets by name.
+
+References are matched literally in string values within `state`, question instructions,
+or criteria. Use distinct delimiters (such as `<photo>`) to avoid matching ordinary text.
+Assets placed directly in `state` or question content, or in `withAssets` text, are sent
+without being listed here. Every name must appear in the request; otherwise the call
+rejects before sending.
+
+***
 
 #### model?
 
@@ -753,8 +794,6 @@ Model override; omitted values inherit `defaultModel`.
 
 ***
 
-<a id="sdk-questions"></a>
-
 #### questions
 
 ```ts
@@ -765,75 +804,13 @@ Nonempty questions keyed by the names used to identify their answers.
 
 ***
 
-<a id="sdk-state"></a>
-
 #### state
 
 ```ts
-state: EntryType;
+state: NonNullable<EntryType>;
 ```
 
-Text, a JSON object or array, or `null` to evaluate.
-
-
-
----
-
-## Interface: SystemOneRequestPayload
-
-Request body for `POST /v1/systemone`, with the model resolved.
-
-### Extends
-
-* [`SystemOneRequest`](#interface-systemonerequestq)
-
-### Properties
-
-<a id="sdk-model"></a>
-
-#### model
-
-```ts
-model: string;
-```
-
-Model override; omitted values inherit `defaultModel`.
-
-##### Overrides
-
-[`SystemOneRequest`](#interface-systemonerequestq).[`model`](#interface-systemonerequestq)
-
-***
-
-<a id="sdk-questions"></a>
-
-#### questions
-
-```ts
-questions: Questions;
-```
-
-Nonempty questions keyed by the names used to identify their answers.
-
-##### Inherited from
-
-[`SystemOneRequest`](#interface-systemonerequestq).[`questions`](#interface-systemonerequestq)
-
-***
-
-<a id="sdk-state"></a>
-
-#### state
-
-```ts
-state: EntryType;
-```
-
-Text, a JSON object or array, or `null` to evaluate.
-
-##### Inherited from
-
-[`SystemOneRequest`](#interface-systemonerequestq).[`state`](#interface-systemonerequestq)
+Text, an asset, a JSON object, or an array to evaluate.
 
 
 
@@ -848,11 +825,9 @@ Answers keyed by question name, with model and usage metadata.
 
 #### Q
 
-`Q` *extends* [`Questions`](#interface-questions)
+`Q` *extends* [`Questions`](https://docs.typesafe.ai/sdk/javascript/api/interfaces/Questions)
 
 ### Properties
-
-<a id="sdk-answers"></a>
 
 #### answers
 
@@ -864,8 +839,6 @@ Answers with types inferred from the supplied questions.
 
 ***
 
-<a id="sdk-model"></a>
-
 #### model
 
 ```ts
@@ -875,8 +848,6 @@ readonly model: string;
 The model used to answer the request.
 
 ***
-
-<a id="sdk-usage"></a>
 
 #### usage
 
@@ -890,13 +861,65 @@ Token usage for the request.
 
 ---
 
+## Interface: TextWithAssets
+
+Text from a `withAssets` tagged template, with the assets interpolated into it.
+
+### Properties
+
+#### assets
+
+```ts
+readonly assets: readonly Image[];
+```
+
+The assets interpolated into the text, including those in nested `withAssets` text.
+
+***
+
+#### text
+
+```ts
+readonly text: string;
+```
+
+The text, with each asset replaced by its reference.
+
+### Methods
+
+#### toJSON()
+
+```ts
+toJSON(): string;
+```
+
+The text, written by `JSON.stringify` wherever this value appears in a request.
+
+##### Returns
+
+`string`
+
+***
+
+#### toString()
+
+```ts
+toString(): string;
+```
+
+##### Returns
+
+`string`
+
+
+
+---
+
 ## Interface: TypeSafeClientConfig
 
 Client options. Explicit values take precedence over environment variables, then SDK defaults.
 
 ### Properties
-
-<a id="sdk-apikey"></a>
 
 #### apiKey?
 
@@ -908,8 +931,6 @@ Required API key; falls back to `TYPESAFE_API_KEY`.
 
 ***
 
-<a id="sdk-baseurl"></a>
-
 #### baseURL?
 
 ```ts
@@ -920,7 +941,18 @@ API root; falls back to `TYPESAFE_BASE_URL`, then `https://api.typesafe.ai`.
 
 ***
 
-<a id="sdk-dangerouslyallowbrowser"></a>
+#### compression?
+
+```ts
+optional compression?: Compression;
+```
+
+Request body compression, sent as `Content-Encoding`. Default: `"zstd"` on runtimes that
+have it (Node.js 22.15 or newer), otherwise `false`. Bodies under 1 KiB are always sent
+uncompressed. Pass `false` to send all bodies uncompressed, for example to an API that
+doesn't accept compressed requests.
+
+***
 
 #### dangerouslyAllowBrowser?
 
@@ -932,8 +964,6 @@ Allow browser use, exposing the API key to page users. Default: false.
 
 ***
 
-<a id="sdk-defaultheaders"></a>
-
 #### defaultHeaders?
 
 ```ts
@@ -943,8 +973,6 @@ optional defaultHeaders?: Record<string, string>;
 Additional request headers; per-call headers take precedence.
 
 ***
-
-<a id="sdk-defaultmodel"></a>
 
 #### defaultModel?
 
@@ -956,8 +984,6 @@ Default model; falls back to `TYPESAFE_DEFAULT_MODEL`, then `jev-latest`.
 
 ***
 
-<a id="sdk-fetch"></a>
-
 #### fetch?
 
 ```ts
@@ -968,8 +994,6 @@ Custom HTTP fetch implementation for transport configuration or tests. Default: 
 
 ***
 
-<a id="sdk-logger"></a>
-
 #### logger?
 
 ```ts
@@ -979,8 +1003,6 @@ optional logger?: Logger;
 Logger filtered to `logLevel` and above. Default: prefixed `console`.
 
 ***
-
-<a id="sdk-loglevel"></a>
 
 #### logLevel?
 
@@ -994,8 +1016,6 @@ Known credential headers are redacted; bodies are not.
 
 ***
 
-<a id="sdk-retry"></a>
-
 #### retry?
 
 ```ts
@@ -1005,8 +1025,6 @@ optional retry?: Partial<RetryPolicy>;
 Retry overrides; omitted fields use the defaults in `RetryPolicy`.
 
 ***
-
-<a id="sdk-timeout"></a>
 
 #### timeout?
 
@@ -1026,27 +1044,23 @@ Token usage for a request.
 
 ### Properties
 
-<a id="sdk-input_tokens"></a>
-
 #### input\_tokens
 
 ```ts
-readonly input_tokens: number;
+readonly input_tokens: number | null;
 ```
 
-Number of input tokens used.
+Number of input tokens used, or `null` when the API did not report it.
 
 ***
-
-<a id="sdk-output_tokens"></a>
 
 #### output\_tokens
 
 ```ts
-readonly output_tokens: number;
+readonly output_tokens: number | null;
 ```
 
-Number of output tokens used.
+Number of output tokens used, or `null` when the API did not report it.
 
 
 
@@ -1065,8 +1079,6 @@ Parsed data with its HTTP response and request ID.
 
 ### Properties
 
-<a id="sdk-data"></a>
-
 #### data
 
 ```ts
@@ -1077,8 +1089,6 @@ The parsed response body.
 
 ***
 
-<a id="sdk-requestid"></a>
-
 #### requestId
 
 ```ts
@@ -1088,8 +1098,6 @@ requestId: string | undefined;
 Request ID from `x-typesafe-request-id`, or `undefined` when absent.
 
 ***
-
-<a id="sdk-response"></a>
 
 #### response
 

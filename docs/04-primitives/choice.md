@@ -106,9 +106,9 @@ console.log(answers.department.choice); // "returns" | "shipping" | "billing"
 
 - Ask **many** Choice questions in one request.
 - Give the **full** list of options rather than a shortlist. Each extra option costs only a few tokens.
-- Add an `other` or `none_of_the_above` escape hatch.
+- When the options might not cover every input, prefer a [companion Noul](../07-patterns.md#companion-noul) that asks whether any option fits; an `other` or `none_of_the_above` option competes with your real options for probability and often works less well.
 - For deep taxonomies, chain Choices level by level. See [Hierarchical classification](../08-cookbooks.md#hierarchical-classification).
-- Jev 1.13 can lean toward the **first** option. Reorder the options to check that answers stay consistent.
+- Jev can lean toward the **first** option. Reorder the options to check that answers stay consistent.
 
 ## A more complex example: five Choices in one call
 

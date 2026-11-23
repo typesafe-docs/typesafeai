@@ -5,34 +5,31 @@
 
 > Use TypeSafeClient to ask questions, list models, and configure synchronous TypeSafe API requests.
 
-<a id="synchronous-client"></a>
+## typesafe\_sdk.TypeSafeClient
 
-<a id="typesafe_sdk.TypeSafeClient"></a>
-
-## `typesafe_sdk.TypeSafeClient`
-
-```python
-TypeSafeClient(
-    *,
-    api_key: str | None = None,
-    model: str | None = None,
-    retry: RetryPolicy | None = None,
-    timeout: float
-    | httpx2.Timeout
-    | None = None,
-    headers: Mapping[str, str] | None = None,
-    transport: httpx2.BaseTransport
-    | None = None,
-    http_client: httpx2.Client | None = None,
-    base_url: str | None = None,
-)
-```
+Copy signature
+<pre tabIndex="0" aria-label="SDK signature">`TypeSafeClient(
+&#x20;   \*,
+&#x20;   api\_key: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | None = None,
+&#x20;   model: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | None = None,
+&#x20;   retry: [RetryPolicy](https://docs.typesafe.ai/sdk/python/api/retries.md#typesafe_sdk.RetryPolicy) | None = None,
+&#x20;   timeout: [float](https://docs.python.org/3/builtins/functions.html#float)
+&#x20;   | httpx2.Timeout
+&#x20;   | None = None,
+&#x20;   headers: [Mapping](https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping)\[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [str](https://docs.python.org/3/builtins/stdtypes.html#str)] | None = None,
+&#x20;   transport: httpx2.BaseTransport
+&#x20;   | None = None,
+&#x20;   http\_client: httpx2.[Client](https://pydantic.dev/docs/httpx2/api/api/#httpx2.Client) | None = None,
+&#x20;   base\_url: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | None = None,
+&#x20;   compression: [Literal](https://docs.python.org/3/library/typing.html#typing.Literal)\["zstd", False]
+&#x20;   | None = None,
+)`</pre>
 
 Create an HTTP client for [TypeSafe AI API](https://typesafe.ai).
 
 Explicit options take precedence over environment variables; empty or whitespace-only environment values are ignored.
 
-> 💡 **Tip**
+> [!TIP]
 >
 > **Logging setup**
 >
@@ -64,12 +61,15 @@ Parameters:
 * **`base_url`** (`str | None`, default: `None` ) –
 
   API root; may be set via the `TYPESAFE_BASE_URL` environment variable.
+* **`compression`** (`Literal['zstd', False] | None`, default: `None` ) –
+
+  Request body compression: `"zstd"`, or `False` to send bodies uncompressed. Defaults to zstd [when available](https://docs.typesafe.ai/sdk/python/usage/advanced.md#ensure-zstd-is-available).
 
 Raises:
 
 * `TypeSafeError` –
 
-  The API key is missing or invalid, or the timeout is invalid.
+  The API key is missing or invalid, the timeout is invalid, or zstd compression is unavailable.
 * `ValueError` –
 
   Both `transport` and `http_client` are supplied.
@@ -94,15 +94,21 @@ with TypeSafeClient() as client:
     assert result.choices["tone"].choice in {"calm", "angry"}
 ```
 
-<a id="typesafe_sdk.TypeSafeClient.models"></a>
-
-### `models`
+### models
 
 `cached` `property`
 
-```python
-models: Models
-```
+Copy signature
+
+<pre tabIndex="0" aria-label="SDK signature">
+  \`models
+
+  :
+
+  &#x20;
+
+  [Models](https://docs.typesafe.ai/sdk/python/api/clients/sync.md#typesafe_sdk.Models)\`
+</pre>
 
 An accessor for the Models API resource.
 
@@ -113,86 +119,132 @@ with TypeSafeClient() as client:
     models = client.models.list()
 ```
 
-<a id="typesafe_sdk.TypeSafeClient.system_one"></a>
+### attach\_assets
 
-### `system_one`
+Copy signature
+<pre tabIndex="0" aria-label="SDK signature">`attach\_assets(
+&#x20;   assets: [Asset](https://docs.typesafe.ai/sdk/python/api/types/assets.md#typesafe_sdk.Asset) | [Sequence](https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence)\[[Asset](https://docs.typesafe.ai/sdk/python/api/types/assets.md#typesafe_sdk.Asset)],
+) -> [AbstractContextManager](https://docs.python.org/3/library/contextlib.html#contextlib.AbstractContextManager)\[None]`</pre>
 
-**Implementation**
+Attach assets to calls made within a `with` block, for referencing them inside strings.
 
-```python
-system_one(
-    state: JSONContent,
-    questions: Mapping[str, Question],
-    *,
-    model: str | None = None,
-    retry: RetryPolicy | None = None,
-    timeout: float
-    | httpx2.Timeout
-    | None = None,
-    extra_headers: Mapping[str, str]
-    | None = None,
-    extra_body: Mapping[str, JSONValue | None]
-    | None = None,
-    response_model: type[ResponseT]
-    | None = None,
-) -> SystemOneResponse | ResponseT
-```
+Until the block exits, calls on this client send each attached asset whose reference, `str(asset)`, appears in the request.
 
-**Overload 1**
-
-```python
-system_one(
-    state: JSONContent,
-    questions: Mapping[str, Question],
-    *,
-    model: str | None = None,
-    retry: RetryPolicy | None = None,
-    timeout: float
-    | httpx2.Timeout
-    | None = None,
-    extra_headers: Mapping[str, str]
-    | None = None,
-    extra_body: Mapping[str, JSONValue | None]
-    | None = None,
-    response_model: None = None,
-) -> SystemOneResponse
-```
-
-**Overload 2**
-
-```python
-system_one(
-    state: JSONContent,
-    questions: Mapping[str, Question],
-    *,
-    model: str | None = None,
-    retry: RetryPolicy | None = None,
-    timeout: float
-    | httpx2.Timeout
-    | None = None,
-    extra_headers: Mapping[str, str]
-    | None = None,
-    extra_body: Mapping[str, JSONValue | None]
-    | None = None,
-    response_model: type[ResponseT],
-) -> ResponseT
-```
-
-Answer named questions about text or structured state.
-
-See [System One](https://docs.typesafe.ai/concepts/system-one) for details.
+> [!WARNING]
+>
+> **Warning**
+>
+> The SDK only recognizes references to assets that are attached, passed in `assets`, or placed directly in the content. A reference to any other asset is sent as plain text, without the asset.
 
 Parameters:
 
-* **`state`** (`JSONContent`) –
+* **`assets`** (`Asset | Sequence[Asset]`) –
 
-  Text, a JSON object, or an array to evaluate. See [state](https://docs.typesafe.ai/concepts/state) for details.
+  An asset, or a sequence of them.
+
+Raises:
+
+* `TypeSafeError` –
+
+  An attached value is not an asset.
+
+Examples:
+
+```python
+from pathlib import Path
+
+from typesafe_sdk import Image, Noul, SystemOneResponse, TypeSafeClient
+
+def inspect(client: TypeSafeClient, path: Path) -> SystemOneResponse:
+    photo = Image(path)
+    with client.attach_assets(photo):
+        return client.system_one(
+            state=f"Product: {photo}",
+            questions={"damaged": Noul(instructions="Is the product damaged?")},
+        )
+```
+
+### system\_one
+
+> [tab] Implementation
+>
+> Copy signature
+> <pre tabIndex="0" aria-label="SDK signature">`system\_one(
+> &#x20;   state: [Content](https://docs.typesafe.ai/sdk/python/api/types/common.md#typesafe_sdk.Content),
+> &#x20;   questions: [Mapping](https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping)\[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [Question](https://docs.typesafe.ai/sdk/python/api/types/questions.md#typesafe_sdk.Question)],
+> &#x20;   \*,
+> &#x20;   model: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | None = None,
+> &#x20;   assets: [Mapping](https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping)\[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [Asset](https://docs.typesafe.ai/sdk/python/api/types/assets.md#typesafe_sdk.Asset)] | None = None,
+> &#x20;   retry: [RetryPolicy](https://docs.typesafe.ai/sdk/python/api/retries.md#typesafe_sdk.RetryPolicy) | None = None,
+> &#x20;   timeout: [float](https://docs.python.org/3/builtins/functions.html#float)
+> &#x20;   | httpx2.Timeout
+> &#x20;   | None = None,
+> &#x20;   extra\_headers: [Mapping](https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping)\[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [str](https://docs.python.org/3/builtins/stdtypes.html#str)]
+> &#x20;   | None = None,
+> &#x20;   extra\_body: [Mapping](https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping)\[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [JSONValue](https://docs.typesafe.ai/sdk/python/api/types/common.md#typesafe_sdk.JSONValue) | None]
+> &#x20;   | None = None,
+> &#x20;   response\_model: [type](https://docs.python.org/3/builtins/functions.html#type)\[ResponseT]
+> &#x20;   | None = None,
+> ) -> [SystemOneResponse](https://docs.typesafe.ai/sdk/python/api/types/responses.md#typesafe_sdk.SystemOneResponse) | ResponseT`</pre>
+
+> [tab] Overload 1
+>
+> Copy signature
+> <pre tabIndex="0" aria-label="SDK signature">`system\_one(
+> &#x20;   state: [Content](https://docs.typesafe.ai/sdk/python/api/types/common.md#typesafe_sdk.Content),
+> &#x20;   questions: [Mapping](https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping)\[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [Question](https://docs.typesafe.ai/sdk/python/api/types/questions.md#typesafe_sdk.Question)],
+> &#x20;   \*,
+> &#x20;   model: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | None = None,
+> &#x20;   assets: [Mapping](https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping)\[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [Asset](https://docs.typesafe.ai/sdk/python/api/types/assets.md#typesafe_sdk.Asset)] | None = None,
+> &#x20;   retry: [RetryPolicy](https://docs.typesafe.ai/sdk/python/api/retries.md#typesafe_sdk.RetryPolicy) | None = None,
+> &#x20;   timeout: [float](https://docs.python.org/3/builtins/functions.html#float)
+> &#x20;   | httpx2.Timeout
+> &#x20;   | None = None,
+> &#x20;   extra\_headers: [Mapping](https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping)\[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [str](https://docs.python.org/3/builtins/stdtypes.html#str)]
+> &#x20;   | None = None,
+> &#x20;   extra\_body: [Mapping](https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping)\[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [JSONValue](https://docs.typesafe.ai/sdk/python/api/types/common.md#typesafe_sdk.JSONValue) | None]
+> &#x20;   | None = None,
+> &#x20;   response\_model: None = None,
+> ) -> [SystemOneResponse](https://docs.typesafe.ai/sdk/python/api/types/responses.md#typesafe_sdk.SystemOneResponse)`</pre>
+
+> [tab] Overload 2
+>
+> Copy signature
+> <pre tabIndex="0" aria-label="SDK signature">`system\_one(
+> &#x20;   state: [Content](https://docs.typesafe.ai/sdk/python/api/types/common.md#typesafe_sdk.Content),
+> &#x20;   questions: [Mapping](https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping)\[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [Question](https://docs.typesafe.ai/sdk/python/api/types/questions.md#typesafe_sdk.Question)],
+> &#x20;   \*,
+> &#x20;   model: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | None = None,
+> &#x20;   assets: [Mapping](https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping)\[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [Asset](https://docs.typesafe.ai/sdk/python/api/types/assets.md#typesafe_sdk.Asset)] | None = None,
+> &#x20;   retry: [RetryPolicy](https://docs.typesafe.ai/sdk/python/api/retries.md#typesafe_sdk.RetryPolicy) | None = None,
+> &#x20;   timeout: [float](https://docs.python.org/3/builtins/functions.html#float)
+> &#x20;   | httpx2.Timeout
+> &#x20;   | None = None,
+> &#x20;   extra\_headers: [Mapping](https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping)\[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [str](https://docs.python.org/3/builtins/stdtypes.html#str)]
+> &#x20;   | None = None,
+> &#x20;   extra\_body: [Mapping](https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping)\[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [JSONValue](https://docs.typesafe.ai/sdk/python/api/types/common.md#typesafe_sdk.JSONValue) | None]
+> &#x20;   | None = None,
+> &#x20;   response\_model: [type](https://docs.python.org/3/builtins/functions.html#type)\[ResponseT],
+> ) -> ResponseT`</pre>
+
+Answer named questions about text, structured state, or assets.
+
+See [System One](https://docs.typesafe.ai/go/system-one.md) for details.
+
+Parameters:
+
+* **`state`** (`Content`) –
+
+  Text, an asset, a JSON object, or an array to evaluate. See [state](https://docs.typesafe.ai/go/state.md) for details.
 * **`questions`** (`Mapping[str, Question]`) –
 
   Nonempty mapping of names to question objects or raw dictionaries.
 * **`model`** (`str | None`, default: `None` ) –
 
   Model override; `None` inherits the client default.
+* **`assets`** (`Mapping[str, Asset] | None`, default: `None` ) –
+
+  Assets keyed by the reference used for them in `state` or questions; see [Attaching media assets](https://docs.typesafe.ai/sdk/python/usage/basic.md#attaching-media-assets).
 * **`retry`** (`RetryPolicy | None`, default: `None` ) –
 
   An optional retry policy to override the client-level value for this call only.
@@ -204,7 +256,7 @@ Parameters:
   Additional request headers to set.
 * **`extra_body`** (`Mapping[str, JSONValue | None] | None`, default: `None` ) –
 
-  Additional top-level request-body fields, shallow-merged over the body after `state`, `model`, and `questions` are set. Merging is last-write-wins: a key that collides with `state`, `model`, or `questions` overrides it, and object values are replaced rather than deep-merged.
+  Additional top-level request-body fields, shallow-merged over the body after `state`, `model`, `questions`, and `assets` are set. Merging is last-write-wins: a key that collides with those fields overrides it, and object values are replaced rather than deep-merged.
 * **`response_model`** (`type[ResponseT] | None`, default: `None` ) –
 
   Optional Pydantic `BaseModel` type describing the JSON response body, including any nested answer models.
@@ -222,7 +274,7 @@ Raises:
 
 * `TypeSafeError` –
 
-  State is `None`, questions are empty, a score or choice question has no criteria, or a noul question has neither instructions nor criteria.
+  The request is invalid before it's sent, such as empty questions or an unreadable asset.
 * `TypeSafeAPIError` –
 
   The server returns an unsuccessful HTTP response after any retries.
@@ -272,9 +324,7 @@ with TypeSafeClient() as client:
     assert result.choices["tone"].choice in {"calm", "angry"}
 ```
 
-<a id="typesafe_sdk.TypeSafeClient.close"></a>
-
-### `close`
+### close
 
 ```python
 close() -> None
@@ -282,33 +332,26 @@ close() -> None
 
 Release network resources and close the underlying HTTP client, including a supplied one.
 
-<a id="models-resource"></a>
-
 ## Models resource
 
-Reached through [`TypeSafeClient.models`](#typesafe_sdk.TypeSafeClient.models).
+Reached through [`TypeSafeClient.models`](https://docs.typesafe.ai/sdk/python/api/clients/sync#typesafe_sdk.TypeSafeClient.models).
 
-<a id="typesafe_sdk.Models"></a>
-
-### `typesafe_sdk.Models`
+### typesafe\_sdk.Models
 
 Access to the models available to the account, reached through `TypeSafeClient.models`.
 
-<a id="typesafe_sdk.Models.list"></a>
+#### list
 
-#### `list`
-
-```python
-list(
-    *,
-    retry: RetryPolicy | None = None,
-    timeout: float
-    | httpx2.Timeout
-    | None = None,
-    extra_headers: Mapping[str, str]
-    | None = None,
-) -> ListModelsResponse
-```
+Copy signature
+<pre tabIndex="0" aria-label="SDK signature">`list(
+&#x20;   \*,
+&#x20;   retry: [RetryPolicy](https://docs.typesafe.ai/sdk/python/api/retries.md#typesafe_sdk.RetryPolicy) | None = None,
+&#x20;   timeout: [float](https://docs.python.org/3/builtins/functions.html#float)
+&#x20;   | httpx2.Timeout
+&#x20;   | None = None,
+&#x20;   extra\_headers: [Mapping](https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping)\[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [str](https://docs.python.org/3/builtins/stdtypes.html#str)]
+&#x20;   | None = None,
+) -> [ListModelsResponse](https://docs.typesafe.ai/sdk/python/api/types/responses.md#typesafe_sdk.ListModelsResponse)`</pre>
 
 List the models available to the account.
 

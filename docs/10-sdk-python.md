@@ -1,6 +1,6 @@
 # 10. Python SDK
 
-[← Back to README](../README.md) · 📚 **[Full generated API reference](reference/python/README.md)** · Sources: <https://docs.typesafe.ai/sdk/python> · <https://docs.typesafe.ai/sdk/python/usage> · GitHub: <https://github.com/typesafe-ai/typesafe-sdk-python>
+[← Back to README](../README.md) · 📚 **[Full generated API reference](reference/python/README.md)** · Sources: <https://docs.typesafe.ai/sdk/python> · <https://docs.typesafe.ai/sdk/python/usage/basic> · <https://docs.typesafe.ai/sdk/python/usage/advanced> · GitHub: <https://github.com/typesafe-ai/typesafe-sdk-python>
 
 Synchronous and asynchronous clients with typed questions and answers, plus automatic retries. Requires Python 3.10 or later.
 
@@ -10,9 +10,11 @@ Synchronous and asynchronous clients with typed questions and answers, plus auto
 pip install typesafe-sdk
 # or
 uv add typesafe-sdk
-# with HTTP/2 support
-pip install 'typesafe-sdk[http2]'
+# extras: HTTP/2, Pillow images, zstd compression on Python 3.13 and earlier
+pip install 'typesafe-sdk[http2,pil,zstd]'
 ```
+
+Request bodies of 1 KiB or more are compressed with zstd by default (since v0.7.5), when zstd is available: Python 3.14 has it built in; on older versions install the `zstd` extra, or bodies go uncompressed. A gateway or custom `base_url` that doesn't accept `Content-Encoding: zstd` needs `compression=False` on the client.
 
 ```bash
 export TYPESAFE_API_KEY="..."   # create one at https://console.typesafe.ai/
@@ -135,9 +137,43 @@ Score(
     instructions="How severe is the reported issue?",
     criteria=["Cosmetic", "Degraded with workaround", "Blocking"],  # ordered sequence (since v0.6.0)
 )
+
+Box(instructions="the coffee mug in `photo`")  # needs Jev 1.14 and an image (since v0.7.5)
 ```
 
-`instructions` and every criteria value accept a `str`, a mapping, a sequence, or `None` (JSON content).
+`instructions` and every criteria value accept a `str`, a mapping, a sequence, an `Image`, or `None`.
+
+### Images
+
+Images need the `TypeSafe-Danger-Zone-Images: true` header (see [Images](04-primitives/images.md) for limits and formats). Requests with images are sent as `multipart/form-data`, one part per image. There are three ways to place one:
+
+```python
+from pathlib import Path
+
+from typesafe_sdk import Image, Noul, TypeSafeClient
+
+client = TypeSafeClient(headers={"TypeSafe-Danger-Zone-Images": "true"})
+returned, listing = Image(Path("returned.jpg")), Image(Path("listing.jpg"))
+
+# 1. Directly in the content (state, instructions, or criteria)
+client.system_one(
+    ["The customer returned this item:", returned],
+    {"same_item": Noul(instructions=["Is it the item in this listing photo?", listing])},
+)
+
+# 2. Inside text: the reference in an f-string is sent only within `attach_assets`
+with client.attach_assets(returned):
+    client.system_one(f"The customer says {returned} arrived scratched.", {"damaged": Noul(instructions="Is the item damaged?")})
+
+# 3. Under a name you choose
+client.system_one(
+    "Inspect this returned product: <product>",
+    {"damaged": Noul(instructions="Is the product damaged?")},
+    assets={"<product>": returned},
+)
+```
+
+Forgetting the `with client.attach_assets(...)` block is the common mistake: the reference is then sent as plain text, without the image.
 
 ### Raw question dictionaries
 
@@ -152,16 +188,17 @@ client.system_one(
 
 | Accessor | Type |
 |---|---|
-| `response.answers[id]` | `NoulAnswer \| ChoiceAnswer \| ScoreAnswer` |
+| `response.answers[id]` | `NoulAnswer \| ChoiceAnswer \| ScoreAnswer \| BoxAnswer` |
 | `response.nouls[id].noul` | `float` |
 | `response.choices[id].choice` / `.probabilities` / `.confidence` | `str` / `dict[str, float]` / `float` |
 | `response.scores[id].score` / `.probabilities` / `.legend` / `.confidence` | `float` / `dict[int, float]` / `dict[int, ...]` / `float` |
-| `response.model` | Versioned model ID, for example `jev-1.13.0` |
+| `response.boxes[id].box` / `.confidence` | `BoxCoordinates` (`top`, `bottom`, `left`, `right`) / `float \| None` ([Box](04-primitives/box.md)) |
+| `response.model` | Versioned model ID, for example `jev-1.14.0` |
 | `response.usage.input_tokens` / `.output_tokens` | `int \| None` (counts are optional: "when reported by the API") |
 | `response.request_id` | The `x-typesafe-request-id` header |
 | `response.raw_http_response` | The underlying HTTP response |
 
-> 💡 **Use the typed accessors.** `response.answers[id]` is typed as the union `NoulAnswer | ChoiceAnswer | ScoreAnswer`, so `response.answers["x"].noul` fails a strict type check under mypy or pyright. `response.nouls`, `response.choices`, and `response.scores` are each narrowed to one answer type:
+> 💡 **Use the typed accessors.** `response.answers[id]` is typed as the union `NoulAnswer | ChoiceAnswer | ScoreAnswer | BoxAnswer`, so `response.answers["x"].noul` fails a strict type check under mypy or pyright. `response.nouls`, `response.choices`, `response.scores`, and `response.boxes` are each narrowed to one answer type:
 >
 > ```python
 > r = client.system_one(state, questions)
@@ -175,7 +212,7 @@ client.system_one(
 Dispatching on answer type:
 
 ```python
-from typesafe_sdk import ChoiceAnswer, NoulAnswer, ScoreAnswer
+from typesafe_sdk import BoxAnswer, ChoiceAnswer, NoulAnswer, ScoreAnswer
 
 for key, answer in response.answers.items():
     if isinstance(answer, NoulAnswer):
@@ -184,6 +221,8 @@ for key, answer in response.answers.items():
         print(key, answer.choice, answer.confidence)
     elif isinstance(answer, ScoreAnswer):
         print(key, answer.score, answer.legend)
+    elif isinstance(answer, BoxAnswer):
+        print(key, answer.box, answer.confidence)
 ```
 
 ## Typed `system_one` responses (pydantic)
@@ -242,7 +281,7 @@ with TypeSafeClient() as client:
     for model in client.models.list().models:
         print(model.name, model.release_date, model.description)
 
-client = TypeSafeClient(model="jev-1.13.0")        # pin a version on the client
+client = TypeSafeClient(model="jev-1.14.0")        # pin a version on the client
 client.system_one(state, questions, model="jev-latest")  # or per call
 ```
 
@@ -255,7 +294,9 @@ client.system_one(state, questions, model="jev-latest")  # or per call
 | `model` | `TYPESAFE_DEFAULT_MODEL` | `jev-latest` |
 | `timeout` | — | `10.0` seconds per HTTP operation |
 | `retry` | — | `RetryPolicy()` |
-| `http_client` | — | an `httpx2` client |
+| `http_client` | — | an `httpx2` client (mutually exclusive with `transport`) |
+| `headers` | — | none; for example `{"TypeSafe-Danger-Zone-Images": "true"}` |
+| `compression` | — | `"zstd"` when available; `False` sends bodies uncompressed |
 | — | `TYPESAFE_LOG_LEVEL` | unset (`debug`/`info`/`warning`/`error`/`off`) |
 
 Leading and trailing whitespace is stripped from API keys. Empty keys and keys with internal whitespace, control characters, or non-ASCII characters are rejected **before** any request is sent. An explicitly empty key doesn't fall back to the environment variable.
@@ -310,7 +351,7 @@ with TypeSafeClient(
 
 ## HTTP/2
 
-HTTP/2 helps when you send many concurrent requests over one connection.
+Keep the default HTTP/1.1 for high request rates. Use HTTP/2 for low to moderate concurrency when you want fewer connections, for example behind a proxy or firewall that limits them.
 
 ```python
 import httpx2
@@ -435,12 +476,41 @@ result = client.system_one("I was charged twice.", {"billing": Noul(instructions
 raw_answers = result.raw_http_response.json()["answers"]
 ```
 
+## Performance
+
+From the official advanced usage guide:
+
+- **Reuse clients.** One client keeps a connection pool (up to 100 connections, idle ones kept 30 s). A client per request pays a new TLS handshake every time.
+- **Keep zstd available** (`typesafe-sdk[zstd]` on Python 3.13 and earlier); compression is on by default.
+- **Async at high concurrency:** an aiohttp transport, `AsyncTypeSafeClient(http_client=Httpx2AiohttpClient())` from `httpx-aiohttp[httpx2]`.
+- **Threads:** give each thread its own client.
+- **Raise the connection limit** when you run more than 100 requests at once:
+
+```python
+import threading
+
+import httpx2
+from typesafe_sdk import AsyncTypeSafeClient, TypeSafeClient
+
+limits = httpx2.Limits(max_connections=200, max_keepalive_connections=200, keepalive_expiry=30)
+aclient = AsyncTypeSafeClient(http_client=httpx2.AsyncClient(limits=limits))
+
+
+class ThreadClients(threading.local):
+    def __init__(self) -> None:
+        self.client = TypeSafeClient()
+
+
+clients = ThreadClients()  # in any thread, `clients.client` is that thread's own client
+```
+
 ## Changelog highlights
 
 | Version | Date | Change |
 |---|---|---|
-| v0.7.4 | 2026-10-09 | `NaN`, `Infinity`, and `-Infinity` anywhere in the request body are sent as the strings `"NaN"`, `"Infinity"`, `"-Infinity"` (JSON has no such tokens). Not yet in the official changelog; taken from the package source. |
-| v0.7.3 | 2026-10-09 | Fix async client crashes during concurrent TLS connections (`truststore<=0.10.4`); more request validation; pooled connections kept alive 30 s; new [Performance](reference/python/usage.md#performance) docs |
+| v0.7.5 | 2026-10-14 | [Images](04-primitives/images.md) (`Image` from a path, bytes, base64, or Pillow; `attach_assets`; named `assets=`), [`Box`](04-primitives/box.md) questions and `BoxAnswer`, zstd request compression on by default. Usage guide split into [basic](reference/python/usage-basic.md) and [advanced](reference/python/usage-advanced.md). |
+| v0.7.4 | 2026-10-09 | Non-finite numbers (`NaN`, `Infinity`) are serialized as strings instead of invalid JSON tokens |
+| v0.7.3 | 2026-10-09 | Fix async client crashes during concurrent TLS connections (`truststore<=0.10.4`); more request validation; pooled connections kept alive 30 s; new [Performance](reference/python/usage-advanced.md#performance) docs |
 | v0.7.2 | 2026-09-26 | `http2` extra |
 | v0.7.1 | 2026-09-21 | API key validated early and kept out of logged exceptions; gateway examples |
 | v0.7.0 | 2026-09-18 | **Breaking:** msgspec → pydantic. New `response_model=`. Fix for serializing `str` subclasses. |

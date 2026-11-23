@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md) · 📚 **[Full generated API reference](reference/javascript/README.md)** · Sources: <https://docs.typesafe.ai/sdk/javascript> · <https://docs.typesafe.ai/sdk/javascript/api> · GitHub: <https://github.com/typesafe-ai/typesafe-sdk-js>
 
-Ships ESM, CommonJS, and TypeScript declarations. **Answer types are inferred from your questions.** Requires Node.js 20 or later.
+Ships ESM, CommonJS, and TypeScript declarations. **Answer types are inferred from your questions.** Requires Node.js 22 or later (since v0.7.0).
 
 ## Install
 
@@ -34,7 +34,7 @@ console.log(response.answers.category.choice); // "billing" | "technical" | "oth
 ## Question builders
 
 ```ts
-import { choice, noul, score } from "@typesafe-ai/sdk";
+import { box, choice, noul, score } from "@typesafe-ai/sdk";
 
 // choice(instructions, criteria): criteria maps labels to descriptions, or null
 choice("Which team should handle this?", {
@@ -50,15 +50,19 @@ score("How severe is the reported issue?", [
   "Blocking issue; no workaround exists",
 ]);
 
-// noul(instructions?, criteria?): optional true/false descriptions
+// noul(instructions, criteria?): optional true/false descriptions
+// (or noul(null, criteria) with criteria alone; a bare noul() doesn't type-check)
 noul("Is the customer asking for a human agent?");
 noul("Has the customer contacted support before?", {
   true: "Mentions a prior attempt, ticket, or that they have asked before",
   false: "No sign of any previous contact",
 });
+
+// box(instructions): where something is in an image (Jev 1.14, needs images turned on)
+box("the coffee mug in `photo`");
 ```
 
-`instructions` and criteria values are `EntryType`s: a string, a JSON object or array, or `null`.
+`instructions` and criteria values are `EntryType`s: a string, an `Image`, `withAssets` text, a JSON object or array, or `null`.
 
 <!-- ts-check:
 import { noul } from "@typesafe-ai/sdk";
@@ -103,16 +107,18 @@ answers.request_type.probabilities;     // Record<"refund" | "rebooking" | "info
 answers.request_type.confidence;        // number
 answers.frustration.score;              // number
 answers.frustration.legend;             // level -> description
-console.log(model, usage.input_tokens, usage.output_tokens);
+console.log(model, usage.input_tokens, usage.output_tokens); // number | null (since v0.7.0)
 ```
 
-## Confidence-gated routing in TypeScript
+## Routing by probability in TypeScript
+
+Act on the probability of the option you're about to act on, with a higher bar for riskier actions. See [Routing by probability](07-patterns.md#routing-by-probability).
 
 <!-- ts-check:
 import { choice, TypeSafeClient } from "@typesafe-ai/sdk";
 declare const client: TypeSafeClient; declare const userMessage: string;
 declare function routeToSupportAgent(): void; declare function showBalance(): void;
-declare function approveTransfer(): void; declare function askUserToConfirm(): void;
+declare function showTransferForConfirmation(): void; declare function askUserToClarify(q: string): void;
 -->
 ```ts
 const { answers } = await client.systemOne({
@@ -126,13 +132,53 @@ const { answers } = await client.systemOne({
   },
 });
 
-const { choice: intent, confidence } = answers.intent;
+const intent = answers.intent;
+const likelihood = intent.probabilities[intent.choice];
 
-if (confidence < 0.6) routeToSupportAgent();
-else if (intent === "check_balance") showBalance();
-else if (intent === "approve_transfer") confidence > 0.85 ? approveTransfer() : askUserToConfirm();
-else routeToSupportAgent();
+if (likelihood < 0.7) routeToSupportAgent(); // the message didn't settle the intent
+else if (intent.choice === "check_balance") showBalance(); // low stakes
+else if (intent.choice === "approve_transfer") {
+  // Identifying the intent starts confirmation; it never approves a transfer by itself.
+  if (likelihood > 0.9) showTransferForConfirmation();
+  else askUserToClarify("Would you like to review the pending transfer?");
+} else routeToSupportAgent();
 ```
+
+## Images
+
+Images and `box` questions are experimental and need the `TypeSafe-Danger-Zone-Images: true` header, on the client or per call (`{ headers: ... }`). Requests with images are sent as `multipart/form-data`. See [Images](04-primitives/images.md) for formats and limits, and [Box](04-primitives/box.md).
+
+<!-- ts-check -->
+```ts
+import { readFile } from "node:fs/promises";
+import { openAsBlob } from "node:fs";
+import { box, image, Image, noul, TypeSafeClient, withAssets } from "@typesafe-ai/sdk";
+
+const client = new TypeSafeClient({ defaultHeaders: { "TypeSafe-Danger-Zone-Images": "true" } });
+const photo = image(await openAsBlob("returns/RMA-1042.jpg")); // also: ArrayBuffer, typed array, or Image.fromBase64(text)
+const catalog = Image.fromBase64((await readFile("catalog/mug.png")).toString("base64"));
+
+// 1. Directly in the content
+await client.systemOne({
+  state: { claim: "The mug arrived with a chipped rim.", photo },
+  questions: { damaged: noul("Is the product in `photo` damaged?"), damage: box("The damaged area of the product in `photo`") },
+});
+
+// 2. Inside text: tag the template with withAssets (an image in an untagged template rejects before sending)
+await client.systemOne({
+  state: withAssets`A customer returned ${photo}. The catalog photo is ${catalog}.`,
+  questions: { same: noul(withAssets`Does ${photo} show the same product as ${catalog}?`) },
+});
+
+// 3. Under names you choose; every name must appear in the request
+await client.systemOne({
+  state: "A customer returned <delivered>. The catalog photo is <catalog>.",
+  questions: { matches: noul("Is <delivered> the product shown in <catalog>?") },
+  assets: { "<delivered>": photo, "<catalog>": catalog },
+});
+```
+
+For a list of images in text, `withAssets.join(images, ", ")` interpolates them with a separator.
 
 ## Listing models
 
@@ -162,6 +208,7 @@ const client = new TypeSafeClient({
   logLevel: "warn",                         // falls back to TYPESAFE_LOG_LEVEL; "info" | "debug" | ...
   defaultHeaders: { "x-app": "triage" },
   retry: { maxRetries: 4 },                 // Partial<RetryPolicy>
+  // compression: false,                   // default: zstd for bodies ≥ 1 KiB on Node ≥ 22.15; an explicit "zstd" throws on older Node
   // fetch: customFetch,                    // custom transport or tests
   // logger: myLogger,                      // default: prefixed console
   // dangerouslyAllowBrowser: true,         // exposes your API key to page users!
@@ -179,7 +226,7 @@ const questions = { q: noul("x") };
 const controller = new AbortController();
 
 const result = await client.systemOne(
-  { state, questions, model: "jev-1.13.0" },   // per-request model override
+  { state, questions, model: "jev-1.14.0" },   // per-request model override
   {
     timeout: 5_000,
     retry: { maxRetries: 0 },
@@ -286,7 +333,7 @@ try {
 }
 ```
 
-`systemOne()` also throws, before any request is sent, if `questions` is empty or a score's criteria aren't a list of at least two entries.
+`systemOne()` also rejects (since v0.7.0 it rejects the returned promise instead of throwing) before any request is sent, if `questions` is empty, a score's criteria aren't a list of at least two entries, a named asset isn't referenced, or an image sits in an untagged template.
 
 ## Typing tips
 
@@ -330,7 +377,8 @@ const { answers } = await new TypeSafeClient().systemOne({ state: "...", questio
 for (const [key, a] of Object.entries(answers)) {
   if (a.type === "noul") console.log(key, a.noul);
   else if (a.type === "choice") console.log(key, a.choice, a.confidence);
-  else console.log(key, a.score, a.legend);
+  else if (a.type === "score") console.log(key, a.score, a.legend);
+  else console.log(key, a.box, a.confidence); // box: edges as fractions of the image
 }
 ```
 
@@ -462,7 +510,7 @@ ENV.logLevel;     // "TYPESAFE_LOG_LEVEL"
 
 ## Testing without the API
 
-Point `baseURL` at the [offline mock server](../examples/mock/mock_server.py) in this repo. Or inject a `fetch` stub, which is handy in unit tests:
+Point `baseURL` at the [offline mock server](../examples/mock/mock_server.py) in this repo. Or inject a `fetch` stub, which is handy in unit tests. Turn compression off so the stub sees plain JSON (bodies of 1 KiB or more are zstd-compressed by default, and image requests are multipart):
 
 <!-- ts-check run -->
 ```ts
@@ -471,13 +519,13 @@ import { noul, TypeSafeClient, type Fetch } from "@typesafe-ai/sdk";
 const fakeFetch: Fetch = async (_url, init) => {
   const body = JSON.parse(String(init?.body));
   const answers = Object.fromEntries(Object.keys(body.questions).map((k) => [k, { type: "noul", noul: 0.9 }]));
-  return new Response(JSON.stringify({ model: "jev-1.13.0", answers, usage: { input_tokens: 1, output_tokens: 1 } }), {
+  return new Response(JSON.stringify({ model: "jev-1.14.0", answers, usage: { input_tokens: 1, output_tokens: 1 } }), {
     status: 200,
     headers: { "content-type": "application/json" },
   });
 };
 
-const client = new TypeSafeClient({ apiKey: "test", fetch: fakeFetch });
+const client = new TypeSafeClient({ apiKey: "test", fetch: fakeFetch, compression: false });
 const { answers } = await client.systemOne({ state: "x", questions: { billing: noul("Is this about billing?") } });
 console.log(answers.billing.noul); // 0.9
 ```
@@ -489,12 +537,13 @@ import { ENV, LOG_LEVELS, VERSION } from "@typesafe-ai/sdk";
 console.log(VERSION, ENV, LOG_LEVELS);
 ```
 
-Type helpers include `ResultFor<Q>`, `ScoreOf<T>`, `ScoreLegend<T>`, `ChoiceCriteria`, `ScoreCriteria`, `EntryType`, `JsonValue`, `SystemOneRequest<Q>`, and `SystemOneResult<Q>`.
+Type helpers include `ResultFor<Q>`, `ScoreOf<T>`, `ScoreLegend<T>`, `ChoiceCriteria`, `ScoreCriteria`, `EntryType`, `ContentValue`, `JsonValue`, `Asset`, `TextWithAssets`, `BoxQuestion`, `BoxResponse`, `BoxCoordinates`, `Compression`, `SystemOneRequest<Q>`, and `SystemOneResult<Q>`. Request payload types are no longer exported (v0.7.0).
 
 ## Changelog
 
 | Version | Date | Change |
 |---|---|---|
+| v0.7.0 | 2026-10-14 | **Breaking:** requires Node.js 22; request payload types no longer exported. Experimental [images](04-primitives/images.md) (`image()`, `Image.fromBase64()`, `withAssets`, `assets`) and [`box()`](04-primitives/box.md) questions; zstd compression for bodies ≥ 1 KiB on Node ≥ 22.15 (`compression: false` to opt out). Fixes: null token counts allowed, more request validation, invalid requests reject instead of throwing, runtime-built score criteria accepted. |
 | v0.6.0 | 2026-09-15 | **Breaking:** `score()` criteria is an ordered list, not an integer-keyed object |
 | v0.5.7 | 2026-09-11 | Initial public release |
 

@@ -144,12 +144,12 @@ if (wantsHuman) routeToAgent(ticket);
 else routeToBot(ticket);
 ```
 
-Picking a threshold:
+Picking a threshold: **start at 0.7 for yes and 0.3 for no.** Often you only care whether the answer is yes, and 0.7 is the only threshold you need. Values between 0.3 and 0.7 can go to a person rather than either code path. Then adjust for cost:
 
-- **0.5:** yes and no are equally cheap to act on.
 - **Higher:** a false yes is expensive, such as paging someone or issuing a refund.
 - **Lower:** a missed yes is expensive, such as failing to flag a safety issue.
-- **Middle band → a human.**
+
+Avoid fitting thresholds closely to a handful of test cases.
 
 ### Noul vs. Score for degree questions
 
@@ -168,7 +168,8 @@ A Noul gives a probability, **not** a measure of degree:
 - **Phrase it so high means yes.** "Contains personal data?" is better than "Is free of personal data?".
 - **A statement works too.** For "The customer is requesting a refund", a value near 1 means the statement is true.
 - **Make the boundary sharp.** "Does this candidate have *any* Python experience?" Add `criteria` when the boundary is subtle.
-- **Don't invert** `true` and `false` relative to the instruction. Jev 1.13 handles contradictions poorly.
+- **Don't invert** `true` and `false` relative to the instruction. Jev handles contradictions poorly.
+- **Try with and without `criteria`** and keep whichever gives better answers on your documents.
 
 ## Several Nouls with a review band
 
@@ -190,8 +191,8 @@ SUPPORT_QUESTIONS = {
     ),
 }
 
-YES = 0.8
-NO = 0.2
+YES = 0.7
+NO = 0.3
 
 
 def route(message: str) -> None:
@@ -211,8 +212,8 @@ def route(message: str) -> None:
         send_to_review(message)
         return
 
-    priority = "high" if repeat > YES else "normal"
-    if wants_human > YES:
+    priority = "high" if repeat >= YES else "normal"
+    if wants_human >= YES:
         route_to_agent(message, priority=priority)
     else:
         route_to_bot(message, priority=priority)
@@ -236,8 +237,8 @@ const SUPPORT_QUESTIONS = {
   }),
 };
 
-const YES = 0.8;
-const NO = 0.2;
+const YES = 0.7;
+const NO = 0.3;
 const client = new TypeSafeClient();
 
 async function route(message: string): Promise<void> {
@@ -251,8 +252,8 @@ async function route(message: string): Promise<void> {
     return sendToReview(message);
   }
 
-  const priority = repeat > YES ? "high" : "normal";
-  if (wantsHuman > YES) routeToAgent(message, priority);
+  const priority = repeat >= YES ? "high" : "normal";
+  if (wantsHuman >= YES) routeToAgent(message, priority);
   else routeToBot(message, priority);
 }
 ```
@@ -431,7 +432,7 @@ Jev doesn't count reliably. Ask one Noul per item and add them up in code:
 ```python
 from typesafe_sdk import Noul, TypeSafeClient
 
-client = TypeSafeClient(model="jev-1.13")
+client = TypeSafeClient(model="jev-latest")
 YES = 0.5
 
 items = ["typesafe", "apple", "california", "banana", "likes", "calibration", "orange", "vertex"]
@@ -453,7 +454,7 @@ count = sum(result.nouls[f"item_{i}"].noul > YES for i in range(len(items)))
 ```ts
 import { noul, TypeSafeClient } from "@typesafe-ai/sdk";
 
-const client = new TypeSafeClient({ defaultModel: "jev-1.13" });
+const client = new TypeSafeClient({ defaultModel: "jev-latest" });
 const YES = 0.5;
 
 const items = ["typesafe", "apple", "california", "banana", "likes", "calibration", "orange", "vertex"];

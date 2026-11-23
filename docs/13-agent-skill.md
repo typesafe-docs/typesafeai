@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md) · Source: <https://docs.typesafe.ai/agent-skill> · Skill: <https://github.com/typesafe-ai/skills/blob/main/skills/typesafe-ai/SKILL.md>
 
-The TypeSafe agent skill gives your coding agent (Claude Code, Codex, and others) full context on the TypeSafe API: the three question types, the architectural patterns, and best practices for structuring evaluations.
+The TypeSafe agent skill gives your coding agent (Claude Code, Codex, and others) full context on the TypeSafe API: the question types, the architectural patterns, and best practices for structuring evaluations.
 
 ## Installation
 
@@ -82,6 +82,8 @@ npx skills update
 
 ## Example prompts
 
+Naming the skill in your prompt ("use the TypeSafe skill") works in any agent, so each prompt below does that. With the Claude Code plugin you can also invoke `/typesafe:typesafe-ai` directly.
+
 Find opportunities:
 
 ```text
@@ -96,24 +98,15 @@ Using the TypeSafe skill, run some experiments using the TypeSafe API key that I
 exported to `TYPESAFE_API_KEY`. Propose changes based on the most promising results.
 ```
 
-Map your code to the cookbooks:
+Map your code to the cookbooks. Point the agent at a [specific cookbook](cookbooks/consistency_noul_cookbook.md) that solves a problem you have, or at the [cookbooks index](https://docs.typesafe.ai/cookbooks):
 
 ```text
 Using the TypeSafe skill, analyze my code and see if there are any applicable
-cookbooks (https://console.typesafe.ai/docs/cookbooks) that show how I could
+cookbooks (https://docs.typesafe.ai/cookbooks) that show how I could
 refactor my code to be less fragile or complex.
 ```
 
-Build something:
-
-```text
-Let's build a simple CLI that uses the TypeSafe API to evaluate a set of supplied documents
-on multiple dimensions. Use the TypeSafe skill to understand how to use the TypeSafe API and
-how to structure the system. Ask me questions about what kinds of documents I want to evaluate
-and on what dimensions.
-```
-
-## Principles for vibe coding
+## Good vibe coding principles
 
 1. Talk it through with your agent, starting from the prompts above.
 2. Review the plan before you implement it.
@@ -128,17 +121,18 @@ A layout that keeps reviews easy:
 # typesafe_config.py: the only file reviewers need to read closely
 from typesafe_sdk import Choice, Noul, Score
 
-MODEL = "jev-1.13.0"           # pinned, because thresholds were tuned against it
+MODEL = "jev-1.14.0"           # pinned, because thresholds were tuned against it
 
 TRIAGE_QUESTIONS = {
     "department": Choice(instructions="Which team should handle this?", criteria={...}),
+    "any_team_fits": Noul(instructions="Does the message belong to the billing or technical team?"),  # companion Noul
     "is_urgent":  Noul(instructions="The message conveys urgency or time-sensitivity"),
     "frustration": Score(instructions="How frustrated is the customer?", criteria=[...]),
 }
 
 THRESHOLDS = {
-    "department_min_confidence": 0.5,
-    "urgent_yes": 0.8,
+    "department_min_probability": 0.7,  # probabilities[choice] of the team you route to
+    "urgent_yes": 0.7,                  # the official Noul starting point
     "frustration_priority": 1.5,
 }
 ```
@@ -149,17 +143,18 @@ THRESHOLDS = {
 // typesafeConfig.ts: the only file reviewers need to read closely
 import { choice, noul, score } from "@typesafe-ai/sdk";
 
-export const MODEL = "jev-1.13.0"; // pinned, because thresholds were tuned against it
+export const MODEL = "jev-1.14.0"; // pinned, because thresholds were tuned against it
 
 export const TRIAGE_QUESTIONS = {
-  department: choice("Which team should handle this?", { billing: "Charges, invoices", technical: "Bugs, outages", other: null }),
+  department: choice("Which team should handle this?", { billing: "Charges, invoices", technical: "Bugs, outages" }),
+  any_team_fits: noul("Does the message belong to the billing or technical team?"), // companion Noul
   is_urgent: noul("The message conveys urgency or time-sensitivity"),
   frustration: score("How frustrated is the customer?", ["Calm", "Frustrated but civil", "Very angry"]),
 };
 
 export const THRESHOLDS = {
-  departmentMinConfidence: 0.5,
-  urgentYes: 0.8,
+  departmentMinProbability: 0.7, // probabilities[choice] of the team you route to
+  urgentYes: 0.7, // the official Noul starting point
   frustrationPriority: 1.5,
 } as const;
 ```
@@ -170,7 +165,7 @@ export const THRESHOLDS = {
 |---|---|
 | The agent isn't using the skill | Invoke `/typesafe:typesafe-ai` in Claude Code, or say "use the TypeSafe skill". Confirm the installer targeted the right agent, then restart it. |
 | Routing doesn't behave as expected | Thresholds set too high cause false negatives, and too low cause false positives. Make the questions more specific. |
-| Confidence thresholds are everywhere | If you only need the best option, take the highest-probability `choice`. For statistical methods, work from `probabilities`. |
+| Confidence thresholds are everywhere | If you only need the best option, take `choice` and don't threshold at all. If code has to decide whether to act, start with the probability: the Noul value itself, or `probabilities[choice]` for a Choice. Read a Score's level probabilities when its position could hide a split answer. `confidence` summarizes uncertainty and is often not the number to act on; for a Choice it's computed from the top probability, so it adds no second check. See [Confidence](05-confidence.md) and [Routing by probability](07-patterns.md#routing-by-probability). |
 | TypeSafe code is hard to review | Keep the questions and thresholds in one file. |
 | The agent invents request or response fields | The skill is probably stale, so update it. |
 

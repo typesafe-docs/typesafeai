@@ -3,634 +3,471 @@
 [← Cookbooks](../08-cookbooks.md) · [README](../../README.md) · Official: <https://docs.typesafe.ai/cookbooks/sde_cascade>
 
 
-> Uses a 2-stage structured-data-extraction cascade (mini → verify → reasoning) to get most of the quality of a big reasoning model at a fraction of the cost.
+> Extracts structured data with a cheap model, checks each field with Jev, and escalates to a reasoning model only when a check fires.
 
 * Overview
-  * big reasoning models extract structured data well, but are slow and expensive
+  * big reasoning models turn text into correct structured data, but are slow and expensive
   * small models are cheap, but make mistakes
-  * a *cascade* gets most of the quality at a fraction of the cost
-  * the models we use, and their price (\$ per 1M tokens, input / output; standard rates
-    checked September 15, 2026):
-    * rung 0 (mini): [`gpt-5.4-mini`](https://developers.openai.com/api/docs/models/gpt-5.4-mini)
-      at \$0.75 / \$4.50
-    * rung 1 (reasoning): [`gpt-5.5`](https://developers.openai.com/api/docs/models/gpt-5.5)
-      at \$5.00 / \$30.00 (roughly 7x the mini)
-    * verifier: TypeSafe `jev-1.12` at \$0.042 / \$0.00 (output tokens are free;
-      [published Jev pricing](https://typesafe.ai/blog/introducing-system-one-models-and-jev))
+  * a *cascade* runs the small model first and pays for the big one only when a check
+    flags the small model's answer
+  * the models we use:
+    * rung 0 (cheap):
+      [`gpt-6-luna`](https://developers.openai.com/api/docs/models/gpt-6-luna)
+    * rung 1 (reasoning):
+      [`gpt-6.1-sol`](https://developers.openai.com/api/docs/models/gpt-6.1-sol) with
+      `reasoning_effort="high"`
+    * verifier: `jev-1.14.0`
 * Algorithm
-  1. **Extract** with a cheap/small model.
-  2. **Verify** with **TypeSafe** primitives: a per-field yes/no ("Noul question")
-     question
-     * (e.g. "is this value absent from the source?", "was it lifted from unrelated
-       text?"), each returning P(something is wrong).
-  3. **Escalate** to an expensive reasoning model if a verifier signal fires; otherwise
-     keep the cheap answer.
-* This Cookbook
-  * walks one real example end-to-end, then shows the tradeoff across 100 prompts
-  * note: the two extraction rungs use text-mode OpenAI
-  * we do *not* use structured outputs, tool calls, or json mode, because:
-    * a *schema following* mistake is not the mistake we expect an LLM to make (it's
-      easy
-      to make synthetic data for this)
-    * if an LLM does fail to follow the schema, it's almost always very confused, so
-      constrained decoding doesn't fix the underlying issue
-    * we encourage you to try them though!
+  1. **Answer** with the cheap model, as a JSON object that matches a schema.
+  2. **Verify** with **Jev**: ask yes/no questions ("Noul questions") about the answer, one
+     per rule it must follow, such as "does this time overlap someone's meeting?"; each
+     returns P(the rule is broken).
+  3. **Escalate** to the reasoning model if the answer fails the schema or a rule check
+     fires; otherwise keep the cheap answer.
 
 ## Setup
 
-* install the dependencies (the TypeSafe verifier client is served from TypeSafe's package
-  index):
+> [card] [Run in Colab](https://colab.research.google.com/github/typesafe-ai/typesafe-public-examples/blob/main/cookbooks/sde_cascade/cascade_cookbook.ipynb)
+>
+> Runs as published without an API key.
+
+> [card] [Python file](https://github.com/typesafe-ai/typesafe-public-examples/blob/main/cookbooks/sde_cascade/cascade_cookbook.py)
+>
+> This page as one .py file, to run locally.
+
+> [card] [Open in playground](https://console.typesafe.ai/playground#share/N4IgJg9gxgrgtgUwHYBcAqCAeKQC4AEIwAOiCgIYDOA1qQaQJoQz7kBOCrS+WADgmxSshlKAAsEYGABsAlkgDm+RAhTyFlAHT4mLdpwWyAbslb4AZggDu+KBCSUUbcvJSV89-Cgk9Msx+r4ohJS0pwQ5jzk4vi87GpQsnGoADRePipqivhSzmr2aeRIYLEQlJSyAEbSAJ5BEIixHJYcSFAI7p7enJmBaojaAHIQKJzdHL7+bmaUENIw+dze5EJWEGzU7lay3pMB2cGSMuGRCCZsdXGCsonJKNoAEgKc+maWNljkcLxhXlSbXBKs3mi0ouGIxCQEKQaAAggBlADSBF0+CQCEkXggQXER1+5GUGKySnM63wACkIEU0mgJBxKASiiV4WJZGwwnVSWwPOj8GJmNzKqorBilj41hs+QLOpEAJy4AAMCqx+AAjAB2RXKzwAWXsYHINW00OhTwmr26e2JOJCx3cXJ45xq9k4uT6PgNNXokMpRT5VEJqnUnW4euKhpyMDYgVVqq1KtjuAAzAq0qqAEzJ5UobGqpNagDc+GhtOeDP97l6ihD+DDnsj0eyGfjObVmZTaYArC3c92U0XoSy2RyK4HiTW6xG3dl5SmEwqs2m40qE5mlWn8yvW6qACxartZhMANizA8h0IAYvISgT+mMxCt8BKAQ6zgJneiAOTuQ6hF7FWx7EcZxXC0YtIXhAB5AAZABVNAAElIMGegQDSUgikoEU2DofASHAQ1cNIScalIdCQEceIAH07yIkBVQXFMyOLEBkDAGjZEQOjEyYkAAF8+LQwheDYBpeDcDBsDwQh8MqGBKBqKi7CQcw5CgFBcPwlAan4OikGYaRmNIeRgJgdTZCAuiABEIA6dIeiJPpOM4eR7PwAADTDsPcjxzmkcheDMO8nwkbgikueIbiSIohFcy13IoGgfP8fA5IUgB+IyQCgaNRmjchNNIJwYAQOjLS8gRUo4cgAW8FK2GOLLzHIaRKFK6Sip8CruVJaRpAgKx3Dq9wGrCUgBPI5g3FkMAECo-ko0oQqyB09rUP0mQspM4rzMsjqQAQoaMkc7JgrinxPIcbyPAWCpZrc58pUWjxuUtT0js4BL-h8lr+sGzKhNIHKdgEWQCukrSGrWljyquyrKmq2rWRGxrAZAZrWuhzr-ywyrer+o76tRiaWIRhAasoKiRIQFpkHaZbtN0-aNsMtHtoa3aHGs2yPrHJzGnOz7up8smarManabaThKNGEpBY8xLqHctJKDMsRWHcAkrgSaLUBC7E1hkEo8jpNERjHHkzHaQQXG4esySFLlwm5chzDyq2BAoOLnIB8jgbysGGahsqurhwVEcJlGxrRjG2pDnHsIsOYCfSIno5J0h9JQKjyfZWQOg0iGitWvSDK2hwdtBbm7PixWfpoJPXp8XO5AL1gjBcfzKlkORtMKACUvGf8ojzyrguWVZ1hfMk3wuWJItuGLfZY-3QfBghIZK+OuFx8PyaRtP2vI2OsbIUPd6TvqBsj-BRvajOQCsUTFCosJFG8BmS+Zsu2Yrjmq-2odNyVYlDy0urvH6ORZDmElkIN+ChdjmFEnANyLo3JfSShraebBl5A1ymvIOW99qwwvqLA+Ucj4sRPtvbql8U7DVvsTPi5F9JUQqIoMIHEuJFxWkzdaP9yLszMgA1CNka4XWFhYTuKoRIQF4GUTgnx1K1B5K6CMTJVFBAoIIQEPAAJ3lwdlfB+VCGnxIYnMhN875NRanHYh59E742vqnCh40BJCRAAFWQAA1AQFR7DSRAEYVU-EgA)
+>
+> Edit one request and run it live. Needs a TypeSafe account.
+
+To run it on your own machine instead:
 
 ```bash
-pip install openai datasets jsonschema ipython 'cooksafe>=0.2.0,<0.3.0'
+pip install openai jsonschema ipython matplotlib pandas 'cooksafe>=0.3.0,<0.4.0'
 ```
 
-* then set `OPENAI_API_KEY` and `TYPESAFE_API_KEY` in your environment
+The code replays saved answers, so it runs as published without an API key. To change a
+request, set `TYPESAFE_API_KEY` and `OPENAI_API_KEY`; in Colab, add them in the Secrets
+panel.
 
 ```python
 import json
 import os
+import re
+import urllib.request
 from pathlib import Path
 
 import jsonschema
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 from cooksafe import JsonCache, make_playground_link
-from datasets import load_dataset
 from IPython.display import Markdown, display
 from openai import OpenAI
 from typesafe_sdk import Noul, NoulCriteria, TypeSafeClient
 
-MINI = "gpt-5.4-mini"  # rung 0: cheap + fast
-REASONING = "gpt-5.5"  # rung 1: strong, run with reasoning_effort="high"
-TS_MODEL = "jev-1.12"  # the TypeSafe verifier model
-FIRE_T = 0.7  # escalate if any per-field P(wrong) exceeds this; also the "<== FIRES" display marker
+CHEAP = "gpt-6-luna"  # rung 0: cheap + fast
+STRONG = "gpt-6.1-sol-high"  # rung 1: gpt-6.1-sol with reasoning_effort="high"
+CONFIGS = {
+    CHEAP: {"model": "gpt-6-luna"},
+    STRONG: {"model": "gpt-6.1-sol", "reasoning_effort": "high"},
+}
+TYPESAFE_MODEL = "jev-1.14.0"  # the page's model; "jev-latest" runs the newest, live
+FIRE_T = 0.7  # escalate if any rule's P(broken) exceeds this; also the "<== FIRES" display marker
 
-oai = OpenAI()
+# The keys this cookbook uses. In Colab, keys saved in the Secrets panel are copied in here.
+KEYS = ["TYPESAFE_API_KEY", "OPENAI_API_KEY"]
+try:
+    from google.colab import userdata
+except ImportError:  # not in Colab
+    userdata = None
+for key in KEYS:
+    if userdata is not None and key not in os.environ:
+        try:
+            os.environ[key] = userdata.get(key)
+        except (userdata.SecretNotFoundError, userdata.NotebookAccessError):
+            pass  # not saved, or this notebook may not read it
 
-ts = TypeSafeClient(api_key=os.environ["TYPESAFE_API_KEY"], timeout=30.0)
+oai = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "cache-only"))
+
+ts = TypeSafeClient(
+    api_key=os.environ.get("TYPESAFE_API_KEY", "cache-only"), timeout=30.0
+)
 ```
 
 ## Step 1: the data
 
-We choose a huggingface dataset called scrapegraphai
+* `example.json` holds one task from the calendar set of
+  [NATURAL PLAN](https://github.com/google-deepmind/natural-plan): the busy times of three
+  people on one work day, and a one-hour meeting to fit around them
+* the code below downloads it from typesafe-public-examples unless it is already on disk
 
 ```python
-SCRAPEGRAPHAI_REVISION = "4bb9fba1dff9181c5acdb60a5a26fea62fa54fe9"
-row = load_dataset(
-    "scrapegraphai/scrapegraphai-100k",
-    revision=SCRAPEGRAPHAI_REVISION,
-    split="train",
-)[516]
-schema = json.loads(row["schema"])
-prompt = row["prompt"]
-content = row["content"]
-
-print(
-    f"""
-PROMPT
-===========
-{prompt}
-
-SCHEMA
-===========
-{json.dumps(schema, indent=2)}
-
-CONTENT
-===========
-{content}
-""".strip()
+EXAMPLE = Path("example.json")
+EXAMPLE_URL = (
+    "https://raw.githubusercontent.com/typesafe-ai/typesafe-public-examples/main/"
+    "cookbooks/sde_cascade/example.json"
 )
+if not EXAMPLE.exists():
+    urllib.request.urlretrieve(EXAMPLE_URL, EXAMPLE)
+task = json.loads(EXAMPLE.read_text())["prompt_0shot"]
+
+print(task.split("TASK:")[-1].replace("SOLUTION:", "").strip())
 ```
 
-```text
-PROMPT
-===========
-Find registration open date fall semester for New York University in New York, NY for the 2024-2025 school year.
+```
+You need to schedule a meeting for Joan, Theresa and Shirley for one hour between the work hours of 9:00 to 17:00 on Monday. 
 
-SCHEMA
-===========
-{
-  "properties": {
-    "registration_open_date": {
-      "description": "The date that registration opens for the fall semester. MUST be in the format mm/dd/yyyy. For example, for a college in the 2024-2025 school year, it might be something like 09/05/2024. Return a blank string if you are unsure.",
-      "title": "Registration Open Date",
-      "type": "string"
+Here are the existing schedules for everyone during the day: 
+Joan has meetings on Monday during 11:00 to 11:30, 12:30 to 13:00; 
+Theresa has meetings on Monday during 12:00 to 12:30, 15:00 to 15:30; 
+Shirley has meetings on Monday during 9:30 to 10:30, 11:00 to 12:00, 13:00 to 14:00, 15:30 to 16:30; 
+
+Find a time that works for everyone's schedule and constraints.
+```
+
+* Every fact the answer depends on is in the text, but the answer itself isn't: the model
+  has to work out a free hour from the busy times
+* Shirley has four meetings, so only one full hour of the day is free for all three
+
+## Step 2: answer with the cheap model
+
+* the prompt ends with a JSON Schema for the answer: a day, a start time and an end time
+* the model reads the schema in the prompt and replies with plain text that we parse. We
+  don't use structured outputs, which would force valid JSON and hide the rare answer that
+  breaks the schema
+
+```python
+TIME = {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "day": {"type": "string", "enum": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], "description": "the day of the meeting"},
+        "start_time": TIME | {"description": "when the meeting starts, 24-hour HH:MM"},
+        "end_time": TIME | {"description": "when the meeting ends, 24-hour HH:MM"},
     },
-    "description": {
-      "description": "A brief description of the registration open date. For example, 'Registration opens for the fall semester'.",
-      "title": "Description",
-      "type": "string"
-    }
-  },
-  "required": [
-    "registration_open_date",
-    "description"
-  ],
-  "title": "RegistrationOpen",
-  "type": "object"
+    "required": ["day", "start_time", "end_time"],
+    "additionalProperties": False,
 }
+FORMAT_LINE = "Return ONLY a JSON object matching this JSON Schema:\n" + json.dumps(SCHEMA, indent=2)
 
-CONTENT
-===========
-Skip to content Skip to current page navigation
+def prompt_for(task: str) -> str:
+    """The task's prompt with the schema placed just before its closing SOLUTION:."""
+    return re.sub(r"SOLUTION:\s*$", FORMAT_LINE + "\nSOLUTION: ", task.rstrip())
 
-[ ](https://www.nyu.edu/)
+# LLM and TypeSafe calls are cached in CACHE, so a re-run reuses earlier answers instead of
+# calling the APIs again.
 
-Search Site
-
-[ ](https://www.nyu.edu/)
-
-  * [ Academics](https://www.nyu.edu/academics.html)
-  * [ Admissions](https://www.nyu.edu/admissions.html)
-  * [ Research](https://www.nyu.edu/research.html)
-  * [ University Life](https://www.nyu.edu/life.html)
-  * [ About](https://www.nyu.edu/about.html)
-
-All NYU
-
-#  Mobile Navigation 
-
-[ ](https://www.nyu.edu/)
-
-Search Site
-
-  * [Academics](https://www.nyu.edu/academics.html)
-  * [Admissions](https://www.nyu.edu/admissions.html)
-  * [Research](https://www.nyu.edu/research.html)
-  * [University Life](https://www.nyu.edu/life.html)
-  * [About](https://www.nyu.edu/about.html)
-
-All NYU
-
-Info for
-
-  * Back to main menu
-  * Info for 
-
-    * [Students](https://www.nyu.edu/students.html)
-    * [Faculty](https://www.nyu.edu/faculty.html)
-    * [Alumni](https://www.nyu.edu/alumni.html)
-    * [Employees](https://www.nyu.edu/employees.html)
-    * [Community](https://www.nyu.edu/community.html)
-
-[Log In](http://home.nyu.edu/)
-
-Info for
-
-  * [Students](https://www.nyu.edu/students.html)
-  * [Faculty](https://www.nyu.edu/faculty.html)
-  * [Alumni](https://www.nyu.edu/alumni.html)
-  * [Employees](https://www.nyu.edu/employees.html)
-  * [Community](https://www.nyu.edu/community.html)
-
-[Log In](https://home.nyu.edu/)
-
-Search Site Search
-
-#  Events Calendar 
-
-Search Events 
-
-Apply Reset
-
-  * [About the Events Calendar ](https://www.nyu.edu/employees/resources-and-services/media-and-communications/digital-communications/university-events-calendar.html)
-  * [Events Calendar Tutorial ](https://www.nyu.edu/employees/resources-and-services/media-and-communications/digital-communications/university-events-calendar/tutorials.html)
-  * [Report issue or provide feedback ](https://nyu.service-now.com/sp?id=sc_cat_item&sys_id=7698dd2a98bcf4004c8c03063d84e274)
-
-Search Filters Calendar
-
-New York University 
-
-Equal Opportunity and Non-Discrimination at NYU - New York University is committed to maintaining an environment that encourages and fosters respect for individual values and appropriate conduct among all persons. In all University spaces--physical and digital--programming, activities, and events are carried out in accordance with applicable law as well as University policy, which includes but is not limited to its Non-Discrimination and Anti-Harassment Policy. 
-
-Unless otherwise noted, all content copyright New York University. All rights reserved. 
-
-  * [Search](https://search.nyu.edu/)
-  * [Campus Map](https://www.nyu.edu/map.html)
-  * [Events](https://events.nyu.edu/)
-  * [Contact Us](https://www.nyu.edu/contact-us.html)
-  * [Give](https://www.nyu.edu/about/giving.html)
-  * [Copyright & Fair Use](https://www.nyu.edu/copyright-and-fair-use.html)
-  * [Privacy](https://www.nyu.edu/privacy.html)
-  * [Accessibility](https://www.nyu.edu/accessibility.html)
-  * [Feedback](https://www.nyu.edu/#feedback.html)
-
-  * [New York Campus](https://www.nyu.edu/)
-  * [Abu Dhabi Campus](https://nyuad.nyu.edu/)
-  * [Shanghai Campus](https://shanghai.nyu.edu/)
-
-  * [![](https://events.nyu.edu/live/resource/image/_i/themes/global/images/icons/facebook.rev.1773448757.svg)](https://facebook.com/)
-  * [![](https://events.nyu.edu/live/resource/image/_i/themes/global/images/icons/linkedin.rev.1773448758.svg)](https://linkedin.com/)
-  * [![](https://events.nyu.edu/live/resource/image/_i/themes/global/images/icons/x.rev.1773448757.svg)](https://x.com/)
-  * [![](https://events.nyu.edu/live/resource/image/_i/themes/global/images/icons/instagram.rev.1773448757.svg)](https://instagram.com/)
-  * [![](https://events.nyu.edu/live/resource/image/_i/themes/global/images/icons/youtube.rev.1773448758.svg)](https://youtube.com/)
-```
-
-* This row is an **NYU events-calendar page** ("Fall 2024 Census Date"):
-  * the schema asks for just two fields: `registration_open_date` and `description`
-  * the prompt scrape captured only calendar nav and boilerplate: **there is no
-    registration date, or description**
-  * note the schema's `description` field even ships an *example* value ("Registration
-    opens for the fall semester") in its own field description
-* so a well-behaved extractor should *decline* to invent the fields the page doesn't
-  contain
-* let's see if the small model does the right thing!
-
-## Step 2: extract with the mini model (text mode)
-
-* note: `gpt-5.4-mini` is very stochastic on this input -- even at `temperature=0` it
-  invents a different `description` on nearly every run. For a reproducible walkthrough we
-  **hard-code** the one canonical fabrication the rest of this notebook explains (and that
-  the verifier flags at P(wrong) > 0.8). A real pipeline would just take `extract(MINI,
-  prompt, schema, content, temperature=0)` directly.
-
-```python
-EXTRACT_SYSTEM = (
-    "You extract structured data from documents. Return only values supported by the text. "
-    "Follow any value format specified by the schema or its field descriptions."
+EXAMPLES_URL = (
+    "https://raw.githubusercontent.com/typesafe-ai/typesafe-public-examples/main/"
+    "cookbooks/sde_cascade"
 )
 
-# LLM and TypeSafe calls are cached to ``json_cache.json``, which ships with the cookbook, so
-# re-rendering reproduces the published results with no API spend; delete the file to re-run live.
-json_cache = JsonCache(Path("json_cache.json"))
+def download(name: str) -> Path:
+    """Fetch one of this cookbook's files from typesafe-public-examples unless it is on disk."""
+    path = Path(name)
+    if not path.exists():
+        urllib.request.urlretrieve(f"{EXAMPLES_URL}/{name}", path)
+    return path
+
+CACHE = Path("sde_cascade_cache.json")
+# True fills CACHE with the published answers, so the run makes no requests. To run
+# live, set it to False and delete CACHE; a CACHE already on disk is never overwritten.
+DOWNLOAD_CACHE = True
+if DOWNLOAD_CACHE:
+    download(CACHE.name)
+json_cache = JsonCache(CACHE)
 
 @json_cache
-def extract(
-    model: str,
-    prompt: str,
-    schema: dict,
-    content: str,
-    *,
-    reasoning_effort: str | None = None,
-    temperature: float | None = None,
-) -> dict:
-    user = (
-        f"{prompt}\n\nReturn ONLY a JSON object matching this JSON Schema:\n"
-        f"{json.dumps(schema, indent=2)}\n\nDocument:\n{content}"
-    )
-    kwargs = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": EXTRACT_SYSTEM},
-            {"role": "user", "content": user},
-        ],
-    }
-    if reasoning_effort:
-        kwargs["reasoning_effort"] = reasoning_effort
-    if temperature is not None:
-        kwargs["temperature"] = temperature
-    text = oai.chat.completions.create(**kwargs).choices[0].message.content
-    # The prompt asks for ONLY a JSON object, so parse the reply as-is -- no regex fishing a
-    # substring out of a malformed reply. If ``json.loads`` fails, treat it as an empty extraction
-    # (the record-level analog of NaN): every field reads as absent, which the verifier flags and the
-    # gate escalates -- the safe direction. Schema-following errors are rare here (see the overview).
+def ask(prompt: str, **config) -> dict:
+    """One reply from a rung, keyed on the prompt and the whole config: model and effort."""
+    r = oai.chat.completions.create(messages=[{"role": "user", "content": prompt}], **config)
+    return {"text": r.choices[0].message.content, "in": r.usage.prompt_tokens, "out": r.usage.completion_tokens}
+
+def parse(text: str) -> dict | None:
+    """The answer as a record, or None if it isn't a JSON object matching ``SCHEMA``. The prompt
+    asks for ONLY a JSON object, so parse the reply as-is -- no regex fishing a substring out of
+    a malformed reply. A reply that fails either check escalates: the safe direction."""
     try:
-        return json.loads(text)
-    except (ValueError, json.JSONDecodeError):
-        return {}
+        record = json.loads(text)
+    except ValueError:
+        return None
+    return record if jsonschema.Draft202012Validator(SCHEMA).is_valid(record) else None
 
-# Hard-coded canonical fabrication (see note above); a real pipeline would use extract(MINI, prompt, schema, content, temperature=0).
-mini_record = {
-    "registration_open_date": "",
-    "description": "Registration opens for the fall semester",
-}
-print("mini extraction:\n", json.dumps(mini_record, indent=2))
-
-# The record is a perfect fit for the JSON Schema -- and still wrong. Schema validation is necessary
-# but not sufficient: it catches structural errors, never semantic ones. That gap is the whole point.
-print("\nschema-valid:", jsonschema.Draft202012Validator(schema).is_valid(mini_record))
+cheap_text = ask(prompt_for(task), **CONFIGS[CHEAP])["text"]
+cheap_record = parse(cheap_text)
+print("cheap answer:", cheap_text)
+print("\nschema-valid:", cheap_record is not None)
 ```
 
 ```
-mini extraction:
- {
-  "registration_open_date": "",
-  "description": "Registration opens for the fall semester"
-}
+cheap answer: {"day":"Monday","start_time":"10:30","end_time":"11:30"}
 
 schema-valid: True
 ```
 
-* The record is **schema-valid** (the line above prints `True`), yet it's wrong:
-  * `registration_open_date` is left blank, which matches the page: it states no date
-  * but `description` is fabricated: the page never describes a registration date, so
-    mini invents a plausible one. It may parrot the schema's own example, "Registration
-    opens for the fall semester", or narrate "...was not found in the document"
+* The answer is **schema-valid** (the line above prints `True`), yet it's wrong:
+  * Monday 10:30-11:30 overlaps Joan's meeting at 11:00 and Shirley's at 11:00
   * a JSON-Schema check can't see this. A cheap model produces confident,
-    schema-satisfying fabrications of this kind, and catching them is the job of a
-    semantic verifier
+    schema-satisfying mistakes of this kind, and catching them is the job of a semantic
+    verifier
 
-## Step 3: verify with TypeSafe
+## Step 3: verify with Jev
 
-* the verifier is **TypeSafe**; for each field we build a `Noul` question:
-  * a narrow yes/no, framed so that `true` = something is wrong (escalate)
-* TypeSafe returns a calibrated `noul` = `P(true)` per question, in one system\_one call
-* the question set:
-  * one holistic **`__overall__::judge`** head ("should this record be escalated?"). We
-    compute and display it to contrast a whole-record judgment with the per-field heads,
-    but the gate in Step 4 does **not** use it -- escalation is driven by the per-field
-    battery.
-  * a per-field battery
-    * non-empty fields get the full set of heads
-    * empty fields (null / "" / \[]) get only the `absence_wrong` head
-  * (the full pipeline also has a `spurious` head for whole containers and an overall
-    `difficulty` score; not shown here, to keep this walkthrough to the two gating heads)
+* the verifier is **Jev**; we ask it one `Noul` question per rule the answer must follow,
+  each framed so that `true` = the rule is broken (escalate)
+* Jev returns a calibrated `noul` = `P(true)` per question, in one system\_one call
+* the state holds the task and the cheap model's record; Jev never sees a correct answer
 * **The TypeSafe Way: Decomposition**
-  * Notice how everything is *programmatically decomposed*, this is TypeSafe way.
-  * Decomposition maximizes the intelligence of every prompt, and makes the algorithm
-    tunable and interpretable.
-![this is the way](../assets/cookbooks/sde_cascade/this_is_the_way.jpg)
+  * we split the check in code into narrow questions, one per rule, never one question
+    about the whole answer
+  * a flag then names the rule that broke, and each question can be reworded or
+    re-thresholded on its own
+  * a single "is this answer right?" returns one score that cannot say what went wrong
+  * see
+    [Decompose the questions](https://docs.typesafe.ai/concepts/how-to-build-with-system-one.md#decompose-the-questions)
+  * ![this is the way](../assets/cookbooks/sde_cascade/this_is_the_way.jpg)
 
 ```python
-# metric -> (question, NoulCriteria)
-MAIN_QUESTIONS = {
-    "name_desc_mismatch": (
-        "Does the `extracted_field` fail to match the field at `path` or the `description` in the "
-        "`field_spec`? If the `description` is empty, judge against the `path` alone.",
-        NoulCriteria(
-            true="the `extracted_field` does not match the field name or its `description`",
-            false="the `extracted_field` matches the field name and `description`",
-        ),
-    ),
-    "type_mismatch": (
-        "Does the `extracted_field` violate the `type` declared in the `field_spec`?",
-        NoulCriteria(
-            true="the `extracted_field` violates the declared `type`",
-            false="the `extracted_field` conforms to the declared `type`",
-        ),
-    ),
-    "unreasonable": (
-        "Is the `extracted_field` one that a reasonable person would not have extracted for this "
-        "`field_spec`?",
-        NoulCriteria(
-            true="a reasonable person would not have extracted this value",
-            false="the extraction is reasonable",
-        ),
-    ),
-    "hallucinated": (
-        "Is the `extracted_field` unsupported by, or absent from, the source text?",
-        NoulCriteria(
-            true="the `extracted_field` is a hallucination -- not supported by, or absent "
-            "from, the source text",
-            false="the `extracted_field` is supported by the source text",
-        ),
-    ),
-    "off_target": (
-        "Does the source text fail to genuinely report the thing the `field_spec` describes, so the "
-        "value was pulled from incidental text?",
-        NoulCriteria(
-            true="the source does not genuinely provide this field -- the value was pulled "
-            "from incidental text",
-            false="the source genuinely reports this field",
-        ),
-    ),
-    "incomplete": (
-        "Does the `extracted_field` fail to capture a value the source supports (note whether the "
-        "`field_spec` is `required`)?",
-        NoulCriteria(
-            true="the field is wrongly empty, null, or missing a value the source supports",
-            false="the field captures the value the source supports",
-        ),
-    ),
-    "format_violation": (
-        "Does the `extracted_field` violate the format or constraints implied by the `description`, "
-        "the schema `type`, and the extraction instructions (e.g. date format, units, enum membership)?",
-        NoulCriteria(
-            true="the `extracted_field` violates the implied format or constraints",
-            false="the `extracted_field` satisfies the format and constraints",
-        ),
-    ),
+RULES = {
+    "busy_conflict": "Does the meeting time in the `answer` overlap a time when any participant in the `task` is busy?",
+    "outside_hours": "Is the meeting time in the `answer` outside the work hours or the days the `task` allows?",
+    "breaks_preference": "Does the meeting time in the `answer` break a preference stated in the `task`, such as a participant who would rather not meet on a certain day or before or after a certain time?",
+    "not_earliest": "Does the `task` ask for the earliest availability, and is there an earlier time that works for every participant?",
+    "wrong_length": "Is the meeting in the `answer` a different length from the one the `task` asks for?",
+    "no_single_time": "Does the `answer` fail to propose exactly one day and one start and end time?",
 }
-ABSENCE_QUESTION = (
-    "The `extracted_field` is empty, null, or an empty collection. Does the source text contain the "
-    "information the `field_spec` describes, making the empty result wrong?"
-)
-ABSENCE_CRITERIA = NoulCriteria(
-    true="a value was wrongly omitted", false="returning nothing is correct"
-)
-
-# The pipeline also asks one holistic, whole-record head: "should this be escalated?"
-OVERALL_JUDGE = (
-    "Is this extracted record an incorrect extraction -- some value unsupported by the source or "
-    "not conforming to the schema, required information missing or wrong, or some field hallucinated -- "
-    "so it should be escalated to a smarter model?"
-)
-OVERALL_JUDGE_CRITERIA = NoulCriteria(
-    true="the record is an incorrect extraction",
-    false="the record is a correct extraction",
-)
-
-def is_empty(v) -> bool:
-    return v is None or (isinstance(v, (str, list, dict)) and len(v) == 0)
-
-def field_spec(name: str) -> dict:
-    """Minimal spec pulled from the schema (unwrapping anyOf/null for optional fields)."""
-    p = schema["properties"][name]
-    branches = p.get("anyOf") or []
-    typ = p.get("type") or next(
-        (b["type"] for b in branches if b.get("type") != "null"), "unknown"
+CHECKS = {
+    rule: Noul(
+        instructions=question,
+        criteria=NoulCriteria(true="the answer breaks this rule", false="the answer follows this rule"),
     )
-    return {
-        "path": name,
-        "type": typ,
-        "description": p.get("description", ""),
-        "required": name in schema.get("required", []),
-    }
-
-def build_questions(record: dict) -> dict[str, Noul]:
-    """The verify question set: one holistic ``__overall__::judge`` head plus a per-field battery,
-    keyed ``field::metric`` (mirrors build_verify_prompts)."""
-    questions: dict[str, Noul] = {
-        "__overall__::judge": Noul(
-            instructions=OVERALL_JUDGE, criteria=OVERALL_JUDGE_CRITERIA
-        ),
-    }
-    for name, value in record.items():
-        spec = field_spec(name)
-        if is_empty(value):
-            questions[f"{name}::absence_wrong"] = Noul(
-                instructions={
-                    "field_spec": spec,
-                    "extracted_field": value,
-                    "main_question": ABSENCE_QUESTION,
-                },
-                criteria=ABSENCE_CRITERIA,
-            )
-            continue
-        for metric, (question, criteria) in MAIN_QUESTIONS.items():
-            if metric == "type_mismatch" and spec["type"] == "unknown":
-                continue
-            questions[f"{name}::{metric}"] = Noul(
-                instructions={
-                    "field_spec": spec,
-                    "extracted_field": value,
-                    "main_question": question,
-                },
-                criteria=criteria,
-            )
-    return questions
+    for rule, question in RULES.items()
+}
 
 @json_cache
-def verify(record: dict) -> dict[str, float | str]:
-    """Run the whole Noul battery over a record in one TypeSafe call; return ``{field::metric: P(true)}``."""
-    state = {
-        "system_message": EXTRACT_SYSTEM,
-        "instruction": "Extract the structured record from this document",
-        "source_text": row["content"],
-        "schema": schema,
-        "extraction": record,
-    }
-    questions = build_questions(record)
-    answers = ts.system_one(state=state, questions=questions, model=TS_MODEL).answers
-    return {qid: ans.noul for qid, ans in answers.items()} | {
-        "playground_link": make_playground_link(state, questions)
-    }
+def verify(state_json: str, model: str) -> dict[str, float]:
+    """Ask every rule question about one answer in one TypeSafe call; return ``{rule: P(broken)}``."""
+    questions = {k: q.model_dump(mode="json", exclude_none=True) for k, q in CHECKS.items()}
+    answers = ts.system_one(state=json.loads(state_json), questions=questions, model=model).answers
+    return {rule: ans.noul for rule, ans in answers.items()}
 ```
 
-### Run the whole battery over the mini extraction
-
 ```python
-checks = verify(mini_record)
-playground_link = checks.pop("playground_link")
-display(
-    Markdown(
-        f"🔗 [Open this verification in the TypeSafe playground]({playground_link})"
-    )
-)
+state = {"task": task, "answer": cheap_record}
+checks = verify(json.dumps(state), model=TYPESAFE_MODEL)
+playground_link = make_playground_link(state, {k: q.model_dump(mode="json", exclude_none=True) for k, q in CHECKS.items()})
+display(Markdown(f"🔗 [Open in the TypeSafe playground]({playground_link})"))
 
-print(f"{'qid':<40}{'P(wrong)':>9}")
-print("-" * 50)
-for fld, p in sorted(checks.items(), key=lambda c: -c[-1]):
+print(f"{'rule':<20}{'P(broken)':>10}")
+print("-" * 30)
+for rule, p in sorted(checks.items(), key=lambda c: -c[1]):
     flag = "  <== FIRES" if p > FIRE_T else ""
-    print(f"{fld:<40}{p:>9.2f}{flag}")
+    print(f"{rule:<20}{p:>10.2f}{flag}")
 ```
 
 ```
-qid                                      P(wrong)
---------------------------------------------------
-description::hallucinated                    0.95  <== FIRES
-description::off_target                      0.85  <== FIRES
-description::unreasonable                    0.58
-__overall__::judge                           0.56
-description::incomplete                      0.16
-registration_open_date::absence_wrong        0.14
-description::format_violation                0.10
-description::name_desc_mismatch              0.08
-description::type_mismatch                   0.02
+rule                 P(broken)
+------------------------------
+busy_conflict             0.97  <== FIRES
+not_earliest              0.25
+wrong_length              0.17
+breaks_preference         0.09
+no_single_time            0.07
+outside_hours             0.04
 ```
 
-<a href="https://console.typesafe.ai/playground#share/N4IgJg9gxgrgtgUwHYBcAqCAeKQC4AEIwAOiAM4CeZKCcA+omWQIYDmCpBpAmhDPlhQAnZlBT5qQmGJhCEYfGGYpm+AGZCIcRdHjIUZAHT4ASghSyk+CEgA2FfADdmtmAjISYABy8QhNBQAjBxQACwR8GmxjADEIW1sIAHd8ZiQHZ1cItT84ZQkvBCgASzVi+XxgyPCJKHC86yF8YoN1ctsFMHcoIWKvFGKbI1IAGnxSYqRJaQGbTnGQAFFsETFqiOmZOQU5KD8FDS1q4o9IWERUUYWyPiEoBDoolHnSAGUAaz7IiHw91H18B8vigfrAhHJUPgvGwIkhmI5iqxlIMkMRiKj0QBtfAAXQAFKEUCgvGRcAB6MlJKmGdIwQzyGBkgCUaIxSFeCGYd1CgJaHHRrOx+MJxNJFKpSRpFDpDOZrNZ+HwACp8NiAIJQZhdODFKBkYVEknkynU2n0sCM0Ra2i6oyEuC2FnoxUq9VgHVMFH6gmGsUmyVm2Vaj1kL2Ge2OhXK1Wmdyc7kG0XGiVSmUWslyMjxurhlAOp1WaPYgCqSGKjgQQlDKAcABlSghE0bxabpebGbYG7n81HXfg1YE+Cgm36U4H08xBzAUN3IwL52y1Ql8AA5bjF+XogDEioAshBAsVbBEV-DEcibOMF0KfUmWwG27KC6yOVy6ryaJvC66NdadXqR2TVs00tTVtVtWcCxdVU1XdE5QyGQD71TdsyWDeCwwjKCizMLM31CJD-RQ2VM2zUJIN7VVS3LStqzrBtCLHR9007NQEAo50iwHIdGOA1DJyHDi2S-JdbFXdcvwASSQHJ1D8L9oIAIVEd5vnwPJJnU5AYEo6TZJyJoFMVItXgsLpUG9EVmyI8dGWoGBzIMITjKLGJRBgWwa14h8QLJNR3M8ihnOMn9XDgMtvOIicwrLYLoMxRY4C8RIKAQdxItsslaGSiBUvcOKiwAYS0OAYDLLzb2spjfL2OBSvKoKsK-L9MVrCBWHwaSm2NUItHYzLn3RPSfgMozXVMhz9Es30gJ81D7Mcu08znb9VTc2BAoy5jGX8jaa2C0L4AiyrRz4oMYuKA7VUSnK8umu8bO2rKkpStKlp7TjXWKuqypaCgtpqkrfv2pqFxatqOq6k6er6qLGUG9kyI-CJX25L8d3wRYKws-BCpcZAlEMhdUffLGpqvRcfHsWMs2eBd4u46d1kx7HWjx48kEJ3FoeQzLste9wM3cW57jIABaNIwDFrMhARUWyUQMBimYCXObF2r6t1C8pjJJXWBaFx1aBstNVmHXforKs-rFhBWfFzUOcJq6Ert3H8c5rl8DQac-GVsSAdQ-ncreoWblkUXValmW5cFxXlcjo2fpN7WyF1xEDdsRPNdNr0yQt2jrdtqb1fdwmyQsEFehcd6VvisxfH8ZomDcRooU0BEunUNKwECFTuasv0zWj3UEDFpBkkMWqyTILwAH5ijAABeMgoDoU26D5OAADJKDIDel4AdgANgATgADjAMAACZmHPwIoDUAAWAAGZ-H6gM+oGfgBmZ+j+-sAZ9H4ICvgfR+CMvwkx5DEI8NAqxu0dlyL8K4EApF4EIVS1FLZ0QpqyRYABHGALh8AAHkfB+AsA1VInNVw2DFgAEROD0YoOo4Rm1SOINcxZ8Bi1XKg-A6DMFlmwX9JuvwSotACGpDSqBmCTEmB1NIAgkAIk0EgC44gwj5GQHsWQMIPCSzktQWi+BMyFDWAZZonNywLyIWJTIbgDE0OYD4TQXgq40HEZzGYqQ4A2EUcuQoVYhjGGkqkZcWCC41gKKIdwYsxZeFCFQLWYlDF6wzvE9x7URB1QUWMUQAwEQDHcPkmhRccZcgiJqcE5QFBDisakKAewhBKCQPcfASQWg8hcclLWgRjz4FsMwFIzAPBJAQMuUZ+BIlW2ib4TsUAKBjCSKEXUPJJhQFcF0DwgQmYnHwOPcQnYdRSJBM0VoK46GMJXr0Vh2tqEKDVKgYoYsAASXJRlkA0fgAACvEXUQVcHolLMeJg1gwiVk6VmA5EAAj5OXH8GgkI9heAoL0VghI+FoL8EImiszAWiVMYiQkHhSKy3kMYMaqooGETwtyOGcpPqqjxklGAHhdwuIDrKPIXhnZkwsoRcpTkBqUUxMVWRaxiz3SqmddMiKClizZc7AA4jRLlE4pwoDJPrBESBWDO2Kqi9FmKt74DcsUJoUrGw80eoDI1xKUAJ38haxVWZnY-N6M4RZ6rGTuPLKIRqy1sI-iae4UMh5OwVQHrNBlohRbhqPH9Z2MRu69ygO8H1ZItxsXkGm94QlmpMsxCg7FGC3asuladOaT5RUDn4PQ0Ik5ijlq8GywitItQMuDdSxterG3NpZa2ytxoyC9oxXIrtha2TxQAISYkFXbBlnYKyhxFggMkLCYRkg3uXeogtWCJF7rYDdeR2Cp11EMPysTBwQHzXIRwhgACMB8D7f0fo-M+B8ACsB9DBkEcKwJkhFdoIBvfmqe3bMRzoXVNJdNFV3h3XZu9g27ii7toPuw9LgT36I3X8VOnYkDvHkJMQw96n0vrfR+79Z8-0AaAzawjxGlZIEnloRlq0oPzptUKowmVl3rszGunDKGd0QsYNqrDx7kOCwvTrTAZHbYUdfe+z9P66OAcIgpiDoroM8cXfx+DQnEMifXWJvdqcD0HmwzJ89+GN1TBUKwHJimH3PpU9R9T-7NM2smNQNgLmdNFr09GikvG4MruM3cJDp6zNofE5h6z0nYt2cvRQIcMBAjsXI+5qjanaPeYY6Fsk6XpyZfYkF4SAoQBjFICveozB5gkBAFkoJxSyBNdIHIfWkhtZ0AgIUJAdAlCfjwPgZr2zmH9BRC8EAaAagjYiFo8Q3WTjCHuQN5AHhLEQvUC4MSWZGBwOMLuYsrw0CVAiJpXbBk8jiDqrrMAJWKAvdiH4AQmBmAvQQGMSxqg9gJAQOwBpu2r7Pyvo-MWYOr5ftqL1eI+BUpcjGC0dSDrLsSD6mEBRgzijEfwM-E+ZJn5frJNDx+xgzAWCEFYVQ-S0iqUkDj0oiO+CpDkPgMqZBZDsSuKQAYKBjyzbMD19b7CyHIHwPQ5QHAasLBrIUWbTO9WkAAL61fAN0Xo025hjYm1rvoZtZtqkqL0BAahFAG511YCAFvdurd6+wzbVhFtvaaFgL7yUfv4AAOQi7WyIJ3g3tvvZu-tiQGHjFCB94YPnIABdC7G6QehVujdy-5xQRXSfyDCAUWr9XCw5CEItfIeYmIutA4D3153w2Zdx8m9rtPOINcJ9l1wEA-vHcogl6idP8fM9t4WAeAAVkUZ4IAC+kEEKsNPBBmsO7Fyifrg3a+jfb-X1PM3s+d8X5eZ3Iemhh+XId9wcD89y5a5oJKBgMDYDG0QUgdB+uW320-3AuBh8OXYJ1-vWf2-jw8jjz82EBmC9Fm0kg8Gxw8GnwKQqF2H2GoSsWaV2HEBgLEBRB4V4RuEQCcBcBbi528AbikSqF2zDmi1bkOS8VuxxzOVILqFoGYDGCLxgBLwUEmFu3uRDBx3eySDUVYDGHe2wOyHaAUEbQSGkEmBlwUHiUx3OQkF6g8iCAiG6BcCkLUlUC+S5DgXUggC6FsFnjj2YTgWVh-xAMH35xqHgJaTESUQ2T8BQI+3W3QN1w138lsCzFm3tyKAQP2X+3sLH0cJny31V0nxAAX0DyXxr0W3f0nCzDaQeF4P8VMIH1mwANsCAMcykGcKmB-zKAmTADoBniKB-2hDCFm3COrxX0WzjwV3MJz16BVz7wb0Ny33b3mwiEW2qHyAqKDy2zkkPxqDcIO0j2O3wFO3Owx2u0GNyHyAe0vme1ezNXew92+1+3ez8MB2BymIiHJyh3B1h3qwgARyRyEBR3u3Ryy0x0QGxz1Vx3x0J2J1J3J0p3MEsFSEqCGSIwkFz1uJZ1K3ZwiAILkFjz72YNYPmDMNCLQICDoDyI6FmzjxkToEIVP1aIWHaPwAAANoT5BYSRDMSxFsoawxgkAPJbABCmglEiSHAAdjxsjjB6EIB3BmYyD2kngvEVBtirEOD2FdtMS4SCiiioACTmissyAxg8hPhbjdtqTTF3APJxBEi9UDCJ8NcjDKwTC9d+cpA6jVAHEIgkgpklSD0HAtBJFS8+83CPDs85BqcyxbjDlVlfiPBkCx988Ndmjrd384REBhtugGATg7s6hki-8Fg0iMjNgzYOstSQABTCjzESjlBQhZtPS08W8Ujs9ldWAN8bkWjdd28TdAgzcLdUyMDbdmYeiyzBtFAZc3cPtPdjwxg-dK8u899g9+jmYhiI8jtKwY848wTtgISdSoSVhYCCiBThcWzd8bd2ydtBjw8T8o9ES5EhsUTqA0Tk8mTICahsTRyxBcSBSCTnUxIzkgyeQbsRCOEsTSjQgCTQ8dzSybACSuT+SRD4yihMTZ5Oo7cHzN8nzCTr8ll8BP8wBgc2AVzqBmZMSbyCSXAbBedVSFh1Sq5TCdTPCdycTxz8SdBmTKCzzOzLyfSIh3sWgPBMTHykBMS48rS6i+TMK8T8iCSzzmSLz8iDkvsIhDFyK-zKL3SFgKL39aiAzNCUBgyYzajUi+B0i+9gCsiozci3yhTEyyjs8KKaiMz28sycyptZ8FhCzizLdczrdrAfyIhKy2zJdXclj3dPtVjfcd8IiLKpgOyj9hiezo8QSNcByLSCBISNd6KJzt8pzHKZy+i5zsgFyRjKxlzJhkTHFdLNyWKMK9yYTDynBBghlPE+TaiRSighltgQcdy4yhTPy1c1TehjDGtxK0Ls86KUqDzsKER4gZdtyOi8rKkFBMScrqLq5aLkqnDUrsK-hbtICfhdsuhNkOqsTuqJ9QiBLcAyo5BRkbBJxE858M9QzSBwyZLMjQChgFL8j3yoBlLkzVKeL1LNr6i88mjzrs99LygSyeKTKKzgqNtqyrK4gbKGzvdmzRcQrrBZz7yIrj8oqPL+yEBi9Byxs-KFgAqRDJy-q3qwqga9sQb3KYrVz4qNyQAICoK4bGLrAkAltG1xBVAlqbg4R+kIggkKaOkpKFBKDG0KxAixyXLVkyLirzFSrELSBkLNT1r48ar28ybOQKbVrqbaJLwkh6aYVxAmblD6qFAoDcCsger3C+qFaBqMD9lyaVqqa+LSB5qxDXASg2EfLxsNq6jtqNdZK9qciYzObiiYybyUzbr0zLqtKbqjKEqQB7rzdDKdKyzTK5TEbeiXdazrL6y7Lfqq8w6D9OzIr3K+zQSIaWCobfLhz-LFaGL4SgrQ6qzkaBjga3LT9oq+8kS1yfbca6qBqGqCaCDyF-AKhggKTUhAg4jxBDg4AxhSC11IhBAVTQi+aqqBazD0KIhdza6sKCbfD8BjaJC2EMCZDKDudG7iCgL1j26AQu6e6ahWSltBA1brT28a6Z866OhnyPBV6iDm6Qg96+6ngDbNdvaUR39bc1BHguR2Bx9R6NKwypKIyQDsjoyBbHbjrnakzXaX6XD5c-66sfjsyvbA78y9LTcHqA7G8g6Xr86nKayaA6yVivcmyHKkbnLwrUaS6o9k6vLU7wTobM7Ybs7Ar28SG462bi7uzS6hAMa4rUSUHErWrMdEN+7sA9sjw1J2BSTJgJkHA5AiDmYbiOo+SwHcrcyxSxgbhmZ9SOkplW1AcDgr8kCF59BiEnhB7yq+QULqq3Bx6hHyDIBcLYV8BJGWCibqYskO5ib9kBTMCtG8CDTdGySKgu6jHHJTHD7LTerbH97nHtJpHqY5GKFtzvH4bZqPSeL387Dvs18Lbf8raAGdrIywCHbFKEyIGVL281K+8JLMyEHtLMH+Hfa0H-aKLnqvCcHQrw78HI7CHGz7LXq2HyGuzFy4FqHC9aH07IgGGp8mHUmWGBmC6yGUbhnQaeHK7sbGSkqJ78aL6xGTzQQXFqdOKVaW5e7hHr6kn8A8RDkDTwgIUi6sSVGxFMTvKwBMSmRzGkKKqNSR7cmx7arBjLz9ljTqZqSSSyTW6uDbi9T-GWS+6Ln-BozXComAXhC2LNR+gedBHtGznyCEWDAn75qeS6AmrMq0Tmsan-8CmbbdrgGDqOgjqTqoHkHe93a6jPb0noHe8CzmnHquW2nLCFncGPrljbKiH+mOmAbC6E60auGxmK9IbzaYaZmp6c6wAEbY7Fn47XLOGlzy6VzeH1zGnNnBHJ6z7p7dnSWZdOyZjxB3t8N1tJhWgWFelb6oKKLMTd6Nh6CGguqB9PWHlmZoTtbaWoyrn2J9U8HshbWxhgZxTlF4AtI4AssqxVkvAPmyqvnLH+a-mhb5d+rzW1WCSrWaBBGXXOxgnbXW4HWRAnWkWFgaLbGzWxyi2JBkQyA8jBGeTA2a2VyCXZrVcL8XFigAA1AuGwe-RwR9CfIAA" target="_blank" rel="noreferrer" className="text-primary">Open this verification in the TypeSafe playground →</a>
+[Open in the TypeSafe playground →](https://console.typesafe.ai/playground#share/N4IgJg9gxgrgtgUwHYBcAqCAeKQC4AEIwAOiCgIYDOA1qQaQJoQz7kBOCrS+WADgmxSshlKAAsEYGABsAlkgDm+RAhTyFlAHT4mLdpwWyAbslb4AZggDu+KBCSUUbcvJSV89-Cgk9Msx+r4ohJS0pwQ5jzk4vi87GpQsnGoADRePipqivhSzmr2aeRIYLEQlJSyAEbSAJ5BEIixHJYcSFAI7p7enJmBaojaAHIQKJzdHL7+bmaUENIw+dze5EJWEGzU7lay3pMB2cGSMuGRCCZsdXGCsonJKNoAEgKc+maWNljkcLxhXlSbXBKs3mi0ouGIxCQEKQaAAggBlADSBF0+CQCEkXggQXER1+5GUGKySnM63wACkIEU0mgJBxKASiiV4WJZGwwnVSWwPOj8GJmNzKqorBilj41hs+QLOpEAJy4AAMCqx+AAjAB2RXKzwAWXsYHINW00OhTwmr26e2JOJCx3cXJ45xq9k4uT6PgNNXokMpRT5VEJqnUnW4euKhpyMDYgVVqq1KtjuAAzAq0qqAEzJ5UobGqpNagDc+GhtOeDP97l6ihD+DDnsj0eyGfjObVmZTaYArC3c92U0XoSy2RyK4HiTW6xG3dl5SmEwqs2m40qE5mlWn8yvW6qACxartZhMANizA8h0IAYvISgT+mMxCt8BKAQ6zgJneiAOTuQ6hF7FWx7EcZxXC0YtIXhAB5AAZABVNAAElIMGegQDSUgikoEU2DofASHAQ1cNIScalIdCQEceIAH07yIkBVQXFMyOLEBkDAGjZEQOjEyYkAAF8+LQwheDYBpeDcDBsDwQh8MqGBKBqKi7CQcw5CgFBcPwlAan4OikGYaRmNIeRgJgdTZCAuiABEIA6dIeiJPpOM4eR7PwAADTDsPcjxzmkcheDMO8nwkbgikueIbiSIohFcy13IoGgfP8fA5IUgB+IyQCgaNRmjchNNIJwYAQOjLS8gRUo4cgAW8FK2GOLLzHIaRKFK6Sip8CruVJaRpAgKx3Dq9wGrCUgBPI5g3FkMAECo-ko0oQqyB09rUP0mQspM4rzMsjqQAQoaMkc7JgrinxPIcbyPAWCpZrc58pUWjxuUtT0js4BL-h8lr+sGzKhNIHKdgEWQCukrSGrWljyquyrKmq2rWRGxrAZAZrWuhzr-ywyrer+o76tRiaWIRhAasoKiRIQFpkHaZbtN0-aNsMtHtoa3aHGs2yPrHJzGnOz7up8smarManabaThKNGEpBY8xLqHctJKDMsRWHcAkrgSaLUBC7E1hkEo8jpNERjHHkzHaQQXG4esySFLlwm5chzDyq2BAoOLnIB8jgbysGGahsqurhwVEcJlGxrRjG2pDnHsIsOYCfSIno5J0h9JQKjyfZWQOg0iGitWvSDK2hwdtBbm7PixWfpoJPXp8XO5AL1gjBcfzKlkORtMKACUvGf8ojzyrguWVZ1hfMk3wuWJItuGLfZY-3QfBghIZK+OuFx8PyaRtP2vI2OsbIUPd6TvqBsj-BRvajOQCsUTFCosJFG8BmS+Zsu2Yrjmq-2odNyVYlDy0urvH6ORZDmElkIN+ChdjmFEnANyLo3JfSShraebBl5A1ymvIOW99qwwvqLA+Ucj4sRPtvbql8U7DVvsTPi5F9JUQqIoMIHEuJFxWkzdaP9yLszMgA1CNka4XWFhYTuKoRIQF4GUTgnx1K1B5K6CMTJVFBAoIIQEPAAJ3lwdlfB+VCGnxIYnMhN875NRanHYh59E742vqnCh40BJCRAAFWQAA1AQFR7DSRAEYVU-EgA)
 
-* TypeSafe concentrates the signal on the fields that are actually wrong.
-* Our results are calibrated: high on the field that is wrong, low on the field that is
-  correct, medium on a field that looks off without being clearly wrong
-* This is what a typesafe verifier buys you over a blunt "is this whole thing good?"
-  judge
+* Only the broken rule scores high:
+  * `busy_conflict` fires at 0.97
+  * every other rule stays at 0.25 or below
 
-## Step 4: the escalation gate
+## Step 4: decide whether to escalate
 
-* now we gate on **`any_flag`**: escalate if *any* field flag exceeds `FIRE_T` (0.7, set
-  above and shared with the `<== FIRES` marker in Step 3)
-* this is a `max`-style gate (escalate if *any* field fires), not a mean, so one confident
-  red flag is enough instead of being averaged into silence
+* escalate if the answer failed the schema check, or if *any* rule's probability exceeds
+  `FIRE_T`
+* this is a `max`-style check, not a mean, so one confident red flag is enough instead of
+  being averaged into silence
+* one threshold works only if the questions separate, scoring high on broken rules and low
+  on kept ones, as in Step 3
+* the verifier has to cost far less than the reasoning rung, or the cascade saves nothing
 
 ```python
-# any_flag is a per-field gate: the holistic __overall__ head is shown above but not part of it
-fired = {
-    qid: p
-    for qid, p in checks.items()
-    if not qid.startswith("__overall__") and p > FIRE_T
-}
-escalate = bool(fired)
+fired = {rule: p for rule, p in checks.items() if p > FIRE_T}
+escalate = cheap_record is None or bool(fired)
 
-print(
-    f"any_flag gate (threshold {FIRE_T}): {'ESCALATE' if escalate else 'ACCEPT cheap result'}"
-)
-for qid, p in sorted(fired.items(), key=lambda c: -c[1]):
-    print(f"  fired: {qid}  (P={p:.2f})")
+print(f"check (threshold {FIRE_T}): {'ESCALATE' if escalate else 'ACCEPT cheap answer'}")
+for rule, p in sorted(fired.items(), key=lambda c: -c[1]):
+    print(f"  fired: {rule}  (P={p:.2f})")
 ```
 
 ```
-any_flag gate (threshold 0.7): ESCALATE
-  fired: description::hallucinated  (P=0.95)
-  fired: description::off_target  (P=0.85)
+check (threshold 0.7): ESCALATE
+  fired: busy_conflict  (P=0.97)
 ```
 
 ## Step 5: escalate to the reasoning model
 
-Since a signal fired, we pay for the strong model (`gpt-5.5`, `reasoning_effort="high"`)
+Since a check fired, we pay for the strong model (`gpt-6.1-sol`,
+`reasoning_effort="high"`)
 
 ```python
-final_record = (
-    extract(REASONING, prompt, schema, content, reasoning_effort="high")
-    if escalate
-    else mini_record
-)
+final_record = parse(ask(prompt_for(task), **CONFIGS[STRONG])["text"]) if escalate else cheap_record
 
-print("mini      :", json.dumps(mini_record))
+print("cheap     :", json.dumps(cheap_record))
 print("reasoning :", json.dumps(final_record))
-print("\nfield-level diff (mini -> final):")
-for name in mini_record:
-    if mini_record[name] != final_record.get(name):
-        print(f"  {name}: {mini_record[name]!r}  ->  {final_record.get(name)!r}")
 ```
 
 ```
-mini      : {"registration_open_date": "", "description": "Registration opens for the fall semester"}
-reasoning : {"description": "", "registration_open_date": ""}
-
-field-level diff (mini -> final):
-  description: 'Registration opens for the fall semester'  ->  ''
+cheap     : {"day": "Monday", "start_time": "10:30", "end_time": "11:30"}
+reasoning : {"day": "Monday", "start_time": "14:00", "end_time": "15:00"}
 ```
 
 * **The improvement**
-  * The reasoning model drops the fabricated `description`, returning `""`
-  * It recognized the page never describes a registration date, and declined to invent one
-  * The cascade turned a confident, schema-valid fabrication into an honest empty field
-  * And it only spent reasoning-model dollars on this one item *because the verifier told
-    it to*
+  * The reasoning model proposes Monday 14:00-15:00, which is free for all three people
+  * The cascade paid for the reasoning model on this task only because the verifier
+    flagged it
 
-## Step 6: what this looks like on 100 prompts
+## Step 6: the cascade on 1,000 tasks
 
-* **These are internal TypeSafe results**, produced with the general method above:
-  * the same `extract → verify → escalate` loop, `gpt-5.4-mini → gpt-5.5-reasoning`,
-    `any_flag` gate over the per-field heads, run over 100 scrapegraphai prompts
-  * each item's cheap-rung extraction is scored by TypeSafe; the gate threshold ("cut") is
-    swept 0→1, and every resulting config is plotted in (cost, quality) space
-  * the chart is a historical snapshot; its costs have not been recalculated at the
-    current Jev rate listed above
+* One example shows how the loop runs. To see whether it pays, we run it on many tasks and
+  plot cost against quality
+* A cascade pays when the cheap model is right most of the time and its mistakes break
+  rules a check can see. Scheduling a meeting fits:
+  * **task:** the 1,000 calendar-scheduling tasks of
+    [NATURAL PLAN](https://github.com/google-deepmind/natural-plan). Each gives the busy
+    times of 2 to 7 people across 1 to 5 work days, how long the meeting should be, and
+    sometimes a preference, such as "would rather not meet on Monday". The model proposes
+    one time that works for everyone
+  * **prompt:** each task's text, ending with the JSON Schema from Step 2
+  * **models:** `gpt-6-luna` with default reasoning is the cheap rung, and `gpt-6.1-sol`
+    with `reasoning_effort="high"` is the strong one. Both answer every task, so we know
+    what each does alone
+  * **checks:** the six rule questions from Step 3. A task's flag is the highest of the
+    six, or 1 when luna's answer fails the schema check
+  * **cascade:** a task goes to sol-high when its flag is above the threshold. Its cost is
+    luna plus Jev, plus sol-high when it goes on
+  * **grading:** an answer works if it is JSON that matches the schema and proposes one of
+    the task's valid times. Some tasks admit more than one valid time, which we added to
+    NATURAL PLAN's answer key; the full key is in `calendar_answers.json`. Grading only
+    scores answers and plays no part in the cascade
+* [`calendar_sweep.py`](https://github.com/typesafe-ai/typesafe-public-examples/blob/main/cookbooks/sde_cascade/calendar_sweep.py)
+  made these calls and wrote one row per task to `calendar_results.csv`. The code below
+  draws the chart from that file and calls nothing
+* Numbers below came from `jev-1.14.0` on 2026-11-05
 
-![internal results: cost/quality frontier over 100 prompts](../assets/cookbooks/sde_cascade/pareto_100prompts.png)
+```python
+RESULTS = Path("calendar_results.csv")
+RESULTS_URL = (
+    "https://raw.githubusercontent.com/typesafe-ai/typesafe-public-examples/main/"
+    "cookbooks/sde_cascade/calendar_results.csv"
+)
+if not RESULTS.exists():
+    urllib.request.urlretrieve(RESULTS_URL, RESULTS)
+tasks = pd.read_csv(RESULTS)  # one row per task: each model's cost, whether its answer works, Jev's flag
 
-* how to read it:
-  * **black diamonds** = the four models run on their own (cost climbs with capability; the
-    strongest, `gpt-5.5-reasoning`, sits top-right at ≈0.81 quality for ≈\$0.10/extraction)
-  * **blue points** = the cascade at many gate thresholds; the dashed line is the **pareto
-    frontier**
-  * the cascade frontier sits **up-and-left of every single model**: sweeping the gate buys
-    you most of the top model's quality at a fraction of its cost
-  * the cheap rung handles the easy items for near-free, and only the flagged items pay for
-    the reasoning model
+def cascade_at(t: float) -> dict:
+    """Mean cost per 1,000 tasks and share of answers that work when tasks flagged above t escalate."""
+    escalate = tasks["flag"] > t
+    cost = tasks["cheap_cost"] + tasks["check_cost"] + escalate * tasks["strong_cost"]
+    works = tasks["strong_works"].where(escalate, tasks["cheap_works"])
+    return {"threshold": t, "cost": 1000 * cost.mean(), "works": works.mean(), "escalated": escalate.mean()}
 
-## Appendix A: what makes a good verifier signal
+cascade = pd.DataFrame([cascade_at(t) for t in np.linspace(0, 1, 201)])
+frontier = cascade.sort_values(["cost", "works"], ascending=[True, False])
+frontier = frontier[frontier["works"] > frontier["works"].cummax().shift(fill_value=-1)]
+singles = pd.DataFrame(
+    {
+        name: {
+            "cost": 1000 * tasks[f"{rung}_cost"].mean(),
+            "cost_sem": 1000 * tasks[f"{rung}_cost"].sem(),
+            "works": tasks[f"{rung}_works"].mean(),
+            "works_sem": tasks[f"{rung}_works"].sem(),
+        }
+        for name, rung in (("gpt-6-luna", "cheap"), ("gpt-6.1-sol-high", "strong"))
+    }
+).T
 
-* the cascade is only as good as its verifier; what separates a useful signal from a
-  useless one:
-  * **Narrow and grounded.**
-    * one checkable yes/no about one field against the source (e.g. "is this value absent
-      from the source?"), not a vague "is this extraction good?"
-    * vague questions give mushy, uncalibrated scores
-  * **Bad = TRUE, with explicit criteria.**
-    * frame each question so the *escalate* case is the `true` case, and state what
-      `true`/`false` mean
-  * **Per-field, then aggregate with `max`.**
-    * a per-field flag localizes the error and stays sparse and strong
-    * `max` ("any flag fires") ensures one confident red flag escalates, instead of being
-      averaged into silence
-  * **Independent and cheap.**
-    * a dedicated verifier (here, TypeSafe) judging the output catches the extractor's own
-      blind spots
-    * it has to be cheap, or there are no savings left to capture
-  * **Separating / calibrated.**
-    * a good signal is high on real errors and low on correct ones, so a single threshold
-      cleanly splits accept vs escalate
-    * that separation is what pushes the pareto curve up-and-left
+# The docs page shows the chart matching its light or dark theme; a notebook shows the light one.
+PALETTES = {
+    "light": {"surface": "#ffffff", "ink": "#34342f", "muted": "#7c7c77", "grid": "#d8d8cf", "blue": "#5d76a2", "cloud": 0.25},
+    "dark": {"surface": "#0d0a0f", "ink": "#fafafa", "muted": "#a1a1aa", "grid": "#3f3f46", "blue": "#8fa6d6", "cloud": 0.35},
+}
+
+def draw_chart(p: dict) -> plt.Figure:
+    fig, ax = plt.subplots(figsize=(8, 5.4), facecolor=p["surface"])
+    ax.set_facecolor(p["surface"])
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    for side in ("left", "bottom"):
+        ax.spines[side].set_color(p["grid"])
+    ax.tick_params(colors=p["muted"], labelcolor=p["ink"], labelsize=9)
+    ax.grid(color=p["grid"], linewidth=0.6)
+    ax.set_axisbelow(True)
+    ax.scatter(cascade["cost"], cascade["works"], s=10, color=p["blue"], alpha=p["cloud"], lw=0,
+               label="cascade, every threshold")
+    ax.plot(frontier["cost"], frontier["works"], color=p["blue"], lw=2, marker="o", ms=4,
+            label="cascade frontier (gpt-6-luna → gpt-6.1-sol-high)")
+    first, last, luna = frontier.iloc[0], frontier.iloc[-1], singles.loc["gpt-6-luna"]
+    if luna["cost"] < first["cost"]:  # luna alone sits left of the frontier: join it at luna's level
+        ax.plot([luna["cost"], first["cost"]], [luna["works"]] * 2, color=p["blue"], lw=2)
+    ax.plot([last["cost"], cascade["cost"].max()], [last["works"]] * 2, color=p["blue"], lw=2)  # past here, more spend buys nothing
+    ax.errorbar(singles["cost"], singles["works"], xerr=singles["cost_sem"], yerr=singles["works_sem"], fmt="D",
+                ms=8, color=p["ink"], ecolor=p["muted"], elinewidth=1, capsize=3, label="single model ±1 SEM")
+    for name, row in singles.iterrows():
+        ax.annotate(name, (row["cost"], row["works"]), xytext=(7, -12), textcoords="offset points", fontsize=9,
+                    color=p["ink"])
+    ax.set_xlabel("mean $ per 1,000 tasks", color=p["ink"], fontsize=9)
+    ax.set_ylabel("share of answers that work", color=p["ink"], fontsize=9)
+    ax.set_title("1,000 meeting-scheduling tasks", color=p["ink"], fontsize=10)
+    ax.legend(fontsize=8, frameon=False, loc="lower right", labelcolor=p["ink"])
+    plt.tight_layout()
+    return fig
+
+# The docs build sets COOKSAFE_RENDER and also draws the dark copy.
+for theme in ("light", "dark") if os.environ.get("COOKSAFE_RENDER") else ("light",):
+    fig = draw_chart(PALETTES[theme])
+    display(fig, metadata={"theme": theme})
+    plt.close(fig)
+```
+
+![output](../assets/cookbooks/sde_cascade/cascade_cookbook.executed.1.png)
+
+```python
+print(singles[["cost", "works"]].round(3).to_string())
+wrong = tasks["cheap_works"] == 0
+print(f"\nluna is wrong on {wrong.sum()} tasks; {tasks.loc[wrong, 'schema_valid'].sum()} of those answers pass the schema check")
+print()
+print(pd.DataFrame([cascade_at(t) for t in (0.58, 0.29, 0.18, 0.16)]).round(3).to_string(index=False))
+```
+
+```
+                   cost  works
+gpt-6-luna        0.156  0.926
+gpt-6.1-sol-high  1.890  0.981
+
+luna is wrong on 74 tasks; 72 of those answers pass the schema check
+
+ threshold  cost  works  escalated
+      0.58 0.261  0.949      0.027
+      0.29 0.490  0.965      0.133
+      0.18 1.307  0.981      0.536
+      0.16 1.500  0.983      0.641
+```
+
+* How to read it:
+  * **black diamonds:** each model on its own, with ±1 SEM bars. Cost barely varies from
+    task to task, so the cost bars are narrower than the markers
+  * **blue points:** the cascade at every threshold. The line joins the points no other
+    point beats on both cost and quality
+* What it shows:
+  * luna alone gets 92.6% of answers right at \$0.16 per 1,000 tasks, and sol-high alone
+    98.1% at \$1.89
+  * 72 of luna's 74 wrong answers pass the schema check, so only Jev's rule checks can
+    catch them
+  * sending the 3% of tasks Jev flags most to sol-high lifts the cascade to 94.9% for
+    \$0.26
+  * sending 13% reaches 96.5% for \$0.49, about a quarter of sol-high's cost
+  * sending 54% matches sol-high, 98.1%, for \$1.31. Past 64% (98.3% for \$1.50), spending
+    more buys nothing, which the flat line on the right shows
+  * Jev's checks cost \$0.04 per 1,000 tasks

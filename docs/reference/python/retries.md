@@ -5,34 +5,29 @@
 
 > Configure retries with RetryPolicy — attempt count, retryable statuses, backoff, and retry headers handling.
 
-<a id="retries"></a>
-
-<a id="typesafe_sdk.RetryPolicy"></a>
-
-## `typesafe_sdk.RetryPolicy`
+## typesafe\_sdk.RetryPolicy
 
 `dataclass`
 
-```python
-RetryPolicy(
-    max_retries: int = 2,
-    backoff_initial: float = 0.5,
-    backoff_max: float = 5.0,
-    backoff_jitter: float = 0.25,
-    http_statuses: set[int] = (
-        lambda: {408, 429, *range(500, 600)}
-    )(),
-    respect_retry_after: bool = True,
-    api_connection_error: bool = True,
-    api_timeout_error: bool = True,
-    exceptions: set[
-        type[BaseException]
-    ] = set(),
-    predicate: Callable[[BaseException], bool]
-    | None = None,
-    timeout: float | None = 30.0,
-)
-```
+Copy signature
+<pre tabIndex="0" aria-label="SDK signature">`RetryPolicy(
+&#x20;   max\_retries: [int](https://docs.python.org/3/builtins/functions.html#int) = 2,
+&#x20;   backoff\_initial: [float](https://docs.python.org/3/builtins/functions.html#float) = 0.5,
+&#x20;   backoff\_max: [float](https://docs.python.org/3/builtins/functions.html#float) = 5.0,
+&#x20;   backoff\_jitter: [float](https://docs.python.org/3/builtins/functions.html#float) = 0.25,
+&#x20;   http\_statuses: [set](https://docs.python.org/3/builtins/stdtypes.html#set)\[[int](https://docs.python.org/3/builtins/functions.html#int)] = (
+&#x20;       lambda: \{408, 429, \*[range](https://docs.python.org/3/builtins/stdtypes.html#range)(500, 600)}
+&#x20;   )(),
+&#x20;   respect\_retry\_after: [bool](https://docs.python.org/3/builtins/functions.html#bool) = True,
+&#x20;   api\_connection\_error: [bool](https://docs.python.org/3/builtins/functions.html#bool) = True,
+&#x20;   api\_timeout\_error: [bool](https://docs.python.org/3/builtins/functions.html#bool) = True,
+&#x20;   exceptions: [set](https://docs.python.org/3/builtins/stdtypes.html#set)\[
+&#x20;       [type](https://docs.python.org/3/builtins/functions.html#type)\[[BaseException](https://docs.python.org/3/builtins/exceptions.html#BaseException)]
+&#x20;   ] = [set](https://docs.python.org/3/builtins/stdtypes.html#set)(),
+&#x20;   predicate: [Callable](https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable)\[\[[BaseException](https://docs.python.org/3/builtins/exceptions.html#BaseException)], [bool](https://docs.python.org/3/builtins/functions.html#bool)]
+&#x20;   | None = None,
+&#x20;   timeout: [float](https://docs.python.org/3/builtins/functions.html#float) | None = 30.0,
+)`</pre>
 
 Configuration for SDK retry behavior.
 
@@ -48,145 +43,256 @@ client = TypeSafeClient(
 )
 ```
 
-<a id="typesafe_sdk.RetryPolicy.max_retries"></a>
-
-### `max_retries`
+### max\_retries
 
 `class-attribute` `instance-attribute`
 
-```python
-max_retries: int = 2
-```
+Copy signature
+
+<pre tabIndex="0" aria-label="SDK signature">
+  \`max\_retries
+
+  :
+
+  &#x20;
+
+  [int](https://docs.python.org/3/builtins/functions.html#int)
+
+  &#x20;
+
+  \=
+
+  &#x20;
+
+  2\`
+</pre>
 
 Maximum retries after the initial attempt; `0` disables retries.
 
-<a id="typesafe_sdk.RetryPolicy.backoff_initial"></a>
-
-### `backoff_initial`
+### backoff\_initial
 
 `class-attribute` `instance-attribute`
 
-```python
-backoff_initial: float = 0.5
-```
+Copy signature
+
+<pre tabIndex="0" aria-label="SDK signature">
+  \`backoff\_initial
+
+  :
+
+  &#x20;
+
+  [float](https://docs.python.org/3/builtins/functions.html#float)
+
+  &#x20;
+
+  \=
+
+  &#x20;
+
+  0.5\`
+</pre>
 
 First backoff delay in seconds, doubled each attempt up to `backoff_max`; zero disables backoff.
 
-<a id="typesafe_sdk.RetryPolicy.backoff_max"></a>
-
-### `backoff_max`
+### backoff\_max
 
 `class-attribute` `instance-attribute`
 
-```python
-backoff_max: float = 5.0
-```
+Copy signature
+
+<pre tabIndex="0" aria-label="SDK signature">
+  \`backoff\_max
+
+  :
+
+  &#x20;
+
+  [float](https://docs.python.org/3/builtins/functions.html#float)
+
+  &#x20;
+
+  \=
+
+  &#x20;
+
+  5.0\`
+</pre>
 
 Maximum backoff delay in seconds; zero disables backoff.
 
-<a id="typesafe_sdk.RetryPolicy.backoff_jitter"></a>
-
-### `backoff_jitter`
+### backoff\_jitter
 
 `class-attribute` `instance-attribute`
 
-```python
-backoff_jitter: float = 0.25
-```
+Copy signature
+
+<pre tabIndex="0" aria-label="SDK signature">
+  \`backoff\_jitter
+
+  :
+
+  &#x20;
+
+  [float](https://docs.python.org/3/builtins/functions.html#float)
+
+  &#x20;
+
+  \=
+
+  &#x20;
+
+  0.25\`
+</pre>
 
 Fraction of each backoff delay randomly subtracted, between 0 and 1.
 
-<a id="typesafe_sdk.RetryPolicy.http_statuses"></a>
-
-### `http_statuses`
+### http\_statuses
 
 `class-attribute` `instance-attribute`
 
-```python
-http_statuses: set[int] = field(
-    default_factory=lambda: {
-        408,
-        429,
-        *range(500, 600),
-    }
-)
-```
+Copy signature
+<pre tabIndex="0" aria-label="SDK signature">`http\_statuses: [set](https://docs.python.org/3/builtins/stdtypes.html#set)\[[int](https://docs.python.org/3/builtins/functions.html#int)] = [field](https://docs.python.org/3/library/dataclasses.html#dataclasses.field)(
+&#x20;   default\_factory=lambda: \{
+&#x20;       408,
+&#x20;       429,
+&#x20;       \*[range](https://docs.python.org/3/builtins/stdtypes.html#range)(500, 600),
+&#x20;   }
+)`</pre>
 
 HTTP status codes that are retried.
 
-<a id="typesafe_sdk.RetryPolicy.respect_retry_after"></a>
-
-### `respect_retry_after`
+### respect\_retry\_after
 
 `class-attribute` `instance-attribute`
 
-```python
-respect_retry_after: bool = True
-```
+Copy signature
+
+<pre tabIndex="0" aria-label="SDK signature">
+  \`respect\_retry\_after
+
+  :
+
+  &#x20;
+
+  [bool](https://docs.python.org/3/builtins/functions.html#bool)
+
+  &#x20;
+
+  \=
+
+  &#x20;
+
+  True\`
+</pre>
 
 Whether to honor `Retry-After` and `retry-after-ms` response headers.
 
-<a id="typesafe_sdk.RetryPolicy.api_connection_error"></a>
-
-### `api_connection_error`
+### api\_connection\_error
 
 `class-attribute` `instance-attribute`
 
-```python
-api_connection_error: bool = True
-```
+Copy signature
+
+<pre tabIndex="0" aria-label="SDK signature">
+  \`api\_connection\_error
+
+  :
+
+  &#x20;
+
+  [bool](https://docs.python.org/3/builtins/functions.html#bool)
+
+  &#x20;
+
+  \=
+
+  &#x20;
+
+  True\`
+</pre>
 
 Whether to retry `TypeSafeAPIConnectionError`, raised when the request cannot reach or read from the server.
 
-<a id="typesafe_sdk.RetryPolicy.api_timeout_error"></a>
-
-### `api_timeout_error`
+### api\_timeout\_error
 
 `class-attribute` `instance-attribute`
 
-```python
-api_timeout_error: bool = True
-```
+Copy signature
+
+<pre tabIndex="0" aria-label="SDK signature">
+  \`api\_timeout\_error
+
+  :
+
+  &#x20;
+
+  [bool](https://docs.python.org/3/builtins/functions.html#bool)
+
+  &#x20;
+
+  \=
+
+  &#x20;
+
+  True\`
+</pre>
 
 Whether to retry `TypeSafeAPITimeoutError`, raised when the request exceeds its timeout.
 
-<a id="typesafe_sdk.RetryPolicy.exceptions"></a>
-
-### `exceptions`
+### exceptions
 
 `class-attribute` `instance-attribute`
 
-```python
-exceptions: set[type[BaseException]] = field(
-    default_factory=set
-)
-```
+Copy signature
+<pre tabIndex="0" aria-label="SDK signature">`exceptions: [set](https://docs.python.org/3/builtins/stdtypes.html#set)\[[type](https://docs.python.org/3/builtins/functions.html#type)\[[BaseException](https://docs.python.org/3/builtins/exceptions.html#BaseException)]] = [field](https://docs.python.org/3/library/dataclasses.html#dataclasses.field)(
+&#x20;   default\_factory=[set](https://docs.python.org/3/builtins/stdtypes.html#set)
+)`</pre>
 
 Additional exception types that trigger a retry, on top of the built-in rules.
 
-<a id="typesafe_sdk.RetryPolicy.predicate"></a>
-
-### `predicate`
+### predicate
 
 `class-attribute` `instance-attribute`
 
-```python
-predicate: (
-    Callable[[BaseException], bool] | None
-) = None
-```
+Copy signature
+<pre tabIndex="0" aria-label="SDK signature">`predicate: (
+&#x20;   [Callable](https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable)\[\[[BaseException](https://docs.python.org/3/builtins/exceptions.html#BaseException)], [bool](https://docs.python.org/3/builtins/functions.html#bool)] | None
+) = None`</pre>
 
 An optional predicate called with the raised exception; returning `True` triggers a retry in addition to the other rules.
 
-<a id="typesafe_sdk.RetryPolicy.timeout"></a>
-
-### `timeout`
+### timeout
 
 `class-attribute` `instance-attribute`
 
-```python
-timeout: float | None = 30.0
-```
+Copy signature
+
+<pre tabIndex="0" aria-label="SDK signature">
+  \`timeout
+
+  :
+
+  &#x20;
+
+  [float](https://docs.python.org/3/builtins/functions.html#float)
+
+  &#x20;
+
+  |
+
+  &#x20;
+
+  None
+
+  &#x20;
+
+  \=
+
+  &#x20;
+
+  30.0\`
+</pre>
 
 Total retry budget in seconds per SDK call, including the initial attempt and delays; `None` disables the limit.
 

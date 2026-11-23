@@ -2,7 +2,10 @@
 
 [← JavaScript reference](README.md) · [JS SDK guide](../../11-sdk-javascript.md) · Official: <https://docs.typesafe.ai/sdk/javascript/api>
 
+- [Asset](#type-alias-asset)
 - [ChoiceCriteria](#type-alias-choicecriteria)
+- [Compression](#type-alias-compression)
+- [ContentValue](#type-alias-contentvalue)
 - [Description](#type-alias-description)
 - [EntryType](#type-alias-entrytype)
 - [EnvVar](#type-alias-envvar)
@@ -14,6 +17,19 @@
 - [ScoreCriteria](#type-alias-scorecriteria)
 - [ScoreLegend](#type-alias-scorelegend)
 - [ScoreOf](#type-alias-scoreof)
+- [SentContent](#type-alias-sentcontent)
+
+
+---
+
+## Type Alias: Asset
+
+```ts
+type Asset = Image;
+```
+
+An asset sent with a request under a reference.
+
 
 
 ---
@@ -36,6 +52,41 @@ Labels mapped to descriptions, or `null` for undescribed labels.
 
 ---
 
+## Type Alias: Compression
+
+```ts
+type Compression = "zstd" | false;
+```
+
+Request body compression: `"zstd"`, or `false` to send bodies uncompressed.
+
+
+
+---
+
+## Type Alias: ContentValue
+
+```ts
+type ContentValue = 
+  | string
+  | number
+  | boolean
+  | null
+  | Asset
+  | TextWithAssets
+  | ContentValue[]
+  | {
+[key: string]: ContentValue;
+};
+```
+
+A JSON-compatible value that may also hold assets, each written as its name in `assets`, or
+else as its reference.
+
+
+
+---
+
 ## Type Alias: Description
 
 ```ts
@@ -53,14 +104,19 @@ A criterion description; `null` leaves the label undescribed.
 ```ts
 type EntryType = 
   | string
+  | Asset
+  | TextWithAssets
   | {
-[key: string]: JsonValue;
+[key: string]: ContentValue;
 }
-  | JsonValue[]
+  | ContentValue[]
   | null;
 ```
 
-Text, a JSON object or array, or `null` for state, instructions, and criteria.
+Text, an asset, a JSON object or array, or `null` for instructions and criteria.
+
+Each asset in it is written as its name in `assets`, or else as its reference, and sent
+with the request.
 
 
 
@@ -140,7 +196,8 @@ Log verbosity; `off` disables logging.
 type Question = 
   | NoulQuestion
   | ScoreQuestion
-  | ChoiceQuestion;
+  | ChoiceQuestion
+  | BoxQuestion;
 ```
 
 A question identified by its `type` field.
@@ -153,7 +210,7 @@ A question identified by its `type` field.
 
 ## Type Alias: `ResultFor<T>`
 ```ts
-type ResultFor<T> = T extends NoulQuestion ? NoulResponse : T extends ScoreQuestion<infer S> ? ScoreResponse<S> : T extends ChoiceQuestion<infer E> ? ChoiceResponse<E> : never;
+type ResultFor<T> = T extends NoulQuestion ? NoulResponse : T extends ScoreQuestion<infer S> ? ScoreResponse<S> : T extends ChoiceQuestion<infer E> ? ChoiceResponse<E> : T extends BoxQuestion ? BoxResponse : never;
 ```
 
 The answer type for a question, preserving its criteria keys.
@@ -162,7 +219,7 @@ The answer type for a question, preserving its criteria keys.
 
 #### T
 
-`T` *extends* [`Question`](#type-alias-question)
+`T` *extends* [`Question`](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/Question)
 
 
 
@@ -184,7 +241,7 @@ At least two descriptions indexed by score from zero; `null` leaves a score unde
 
 ## Type Alias: `ScoreLegend<T>`
 ```ts
-type ScoreLegend<T> = { readonly [score in ScoreOf<T>]: T[score] };
+type ScoreLegend<T> = { readonly [score in ScoreOf<T>]: SentContent<T[score]> };
 ```
 
 Rubric descriptions keyed by score.
@@ -193,7 +250,7 @@ Rubric descriptions keyed by score.
 
 #### T
 
-`T` *extends* [`ScoreCriteria`](#type-alias-scorecriteria)
+`T` *extends* [`ScoreCriteria`](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/ScoreCriteria)
 
 
 
@@ -212,4 +269,23 @@ Score keys inferred from the rubric; a fixed-length tuple yields its indices, ot
 
 #### T
 
-`T` *extends* [`ScoreCriteria`](#type-alias-scorecriteria)
+`T` *extends* [`ScoreCriteria`](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/ScoreCriteria)
+
+
+
+---
+
+<a id="type-alias-sentcontentt"></a><a id="type-alias-sentcontent"></a>
+
+## Type Alias: `SentContent<T>`
+```ts
+type SentContent<T> = T extends Asset | TextWithAssets ? string : T extends object ? { readonly [key in keyof T]: SentContent<T[key]> } : T;
+```
+
+Content as the API returns it, with assets and `withAssets` text written as strings.
+
+### Type Parameters
+
+#### T
+
+`T`

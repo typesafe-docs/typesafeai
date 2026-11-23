@@ -49,7 +49,7 @@ const messages = ["Hi", "My customer number is TS1337.", "My card was charged tw
 await client.systemOne({ state: record, questions });
 ```
 
-> **Text only.** State must be a string, a JSON object, or an array of text values. Images, audio, and video aren't supported yet. English is the primary training language. Other languages, including CJK scripts, work but are currently less accurate.
+> **Text and images.** State is a string, a JSON object, or an array, and it can include PNG and JPEG [images](04-primitives/images.md) (not production-ready yet, and it needs the `TypeSafe-Danger-Zone-Images: true` header). Audio and video aren't supported yet. Accuracy varies by language; Jev 1.14 improved multilingual support, but calibrate thresholds per language ([Models](12-models.md#language-support-and-calibrating-thresholds)).
 
 ## A structured state
 
@@ -280,7 +280,7 @@ console.log(`forward ${forward.toFixed(2)}, reversed ${reverse.toFixed(2)}, shif
 
 Run it over a handful of real examples. A shift that would cross your threshold means the question or criteria are too loose; tighten them rather than relying on order.
 
-**Size.** The limits are in tokens, not characters: **64k per request** (state plus all questions) and **32k for the state plus the single longest question** ([Models](12-models.md)). Stay well under them: even inside the limits, irrelevant material costs accuracy. For a document too long for one request, split it and ask the same question about each part, then combine the answers in code:
+**Size.** The limits are in tokens, not characters: **64k per request** (state plus all questions) and **32k for the state plus the single longest question** ([Models](12-models.md#context-length)). Images count toward both. The `TypeSafe-Danger-Zone-Long-Context: true` header raises both to 262k tokens per request, but it's slower and less accurate, so prefer filtering and splitting ([Long context](12-models.md#long-context)). Stay well under them: even inside the limits, irrelevant material costs accuracy. For a document too long for one request, split it and ask the same question about each part, then combine the answers in code:
 
 **Python**
 
